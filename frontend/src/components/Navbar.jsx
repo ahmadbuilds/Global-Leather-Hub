@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/authContext";
-import { Menu, X, User, LogOut, ChevronDown, Shield } from "lucide-react";
+import api from "../utils/api";
+import { Menu, X, User, LogOut, ChevronDown, Shield, ShoppingCart } from "lucide-react";
 import toast from "react-hot-toast";
 
 const NAV_LINKS = [
@@ -19,6 +20,7 @@ export default function Navbar() {
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [prevLink, setPrevLink] = useState(null);
+  const [cartCount, setCartCount] = useState(0);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24);
@@ -30,6 +32,31 @@ export default function Navbar() {
     setMobileOpen(false);
     setDropdownOpen(false);
   }, [location]);
+
+  useEffect(() => {
+    const fetchCart = async () => {
+      if (!isAuthenticated) {
+        setCartCount(0);
+        return;
+      }
+
+      try {
+        const { data } = await api.get('/cart');
+        setCartCount(data.data.items.length || 0);
+      } catch (err) {
+        console.warn('Cart count failed', err);
+      }
+    };
+
+    fetchCart();
+
+    const refreshCartCount = () => {
+      fetchCart();
+    };
+
+    window.addEventListener('cartUpdated', refreshCartCount);
+    return () => window.removeEventListener('cartUpdated', refreshCartCount);
+  }, [isAuthenticated]);
 
   const handleLogout = async () => {
     await logout();
@@ -97,23 +124,35 @@ export default function Navbar() {
           {/* ── Auth ── */}
           <div className="hidden md:flex items-center gap-3 animate-fade-down stagger-2">
             {isAuthenticated ? (
-              <div className="relative">
-                <button
-                  onClick={() => setDropdownOpen(!dropdownOpen)}
-                  className="flex items-center gap-2.5 border border-border bg-paper hover:border-tan/60 rounded-full px-3 py-2 transition-all duration-300 shadow-soft hover:shadow-card"
+              <>
+                <Link
+                  to="/cart"
+                  className="relative flex items-center justify-center w-9 h-9 rounded-full bg-paper border border-border hover:border-tan/60 transition-all duration-300"
                 >
-                  <div className="w-7 h-7 rounded-full bg-tan/20 border border-tan/40 flex items-center justify-center flex-shrink-0 transition-all duration-300">
-                    <span className="text-sienna text-xs font-semibold">
-                      {user?.username?.[0]?.toUpperCase()}
+                  <ShoppingCart className="w-4 h-4 text-espresso" />
+                  {cartCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full bg-rust text-white text-[10px] font-semibold flex items-center justify-center px-1">
+                      {cartCount}
                     </span>
-                  </div>
-                  <span className="text-espresso text-[13px] font-medium pr-0.5">
-                    {user?.username}
-                  </span>
-                  <ChevronDown
-                    className={`w-3.5 h-3.5 text-fog transition-transform duration-300 ${dropdownOpen ? "rotate-180" : ""}`}
-                  />
-                </button>
+                  )}
+                </Link>
+                <div className="relative">
+                  <button
+                    onClick={() => setDropdownOpen(!dropdownOpen)}
+                    className="flex items-center gap-2.5 border border-border bg-paper hover:border-tan/60 rounded-full px-3 py-2 transition-all duration-300 shadow-soft hover:shadow-card"
+                  >
+                    <div className="w-7 h-7 rounded-full bg-tan/20 border border-tan/40 flex items-center justify-center flex-shrink-0 transition-all duration-300">
+                      <span className="text-sienna text-xs font-semibold">
+                        {user?.username?.[0]?.toUpperCase()}
+                      </span>
+                    </div>
+                    <span className="text-espresso text-[13px] font-medium pr-0.5">
+                      {user?.username}
+                    </span>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-fog transition-transform duration-300 ${dropdownOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
 
                 {dropdownOpen && (
                   <div
@@ -126,6 +165,15 @@ export default function Navbar() {
                     >
                       <User className="w-3.5 h-3.5 text-fog" />
                       My Account
+                    </Link>
+                    <Link
+                      to="/orders"
+                      className="flex items-center gap-2.5 px-4 py-3 text-[13px] text-espresso hover:bg-linen transition-all duration-200 hover:pl-5"
+                    >
+                      <svg className="w-3.5 h-3.5 text-fog" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      My Orders
                     </Link>
                     {user?.role === "admin" && (
                       <Link
@@ -147,6 +195,7 @@ export default function Navbar() {
                   </div>
                 )}
               </div>
+            </>
             ) : (
               <>
                 <Link
@@ -206,6 +255,12 @@ export default function Navbar() {
                     className="block py-2.5 text-[13px] text-espresso font-medium hover:text-sienna transition-colors"
                   >
                     My Account
+                  </Link>
+                  <Link
+                    to="/orders"
+                    className="block py-2.5 text-[13px] text-espresso font-medium hover:text-sienna transition-colors"
+                  >
+                    My Orders
                   </Link>
                   {user?.role === "admin" && (
                     <Link
