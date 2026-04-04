@@ -58,6 +58,24 @@ const userSchema = new mongoose.Schema(
     avatar: { type: String },
     avatarPublicId: { type: String, select: false },
     lastLogin: { type: Date },
+    preferredCurrency: {
+      type: String,
+      enum: ['USD', 'EUR', 'GBP', 'AUD', 'CAD', 'CNY'],
+      default: 'USD',
+    },
+    shippingProfiles: [
+      {
+        name: { type: String, trim: true },
+        fullName: { type: String, trim: true },
+        company: { type: String, trim: true },
+        address: { type: String, trim: true },
+        city: { type: String, trim: true },
+        country: { type: String, trim: true },
+        postalCode: { type: String, trim: true },
+        phone: { type: String, trim: true },
+        isDefault: { type: Boolean, default: false },
+      },
+    ],
   },
   {
     timestamps: true,
