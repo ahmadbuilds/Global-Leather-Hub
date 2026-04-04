@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const Order = require('../models/Order');
 const { generateOTP, getOTPExpiry } = require('../utils/otp');
 const { sendOTPEmail } = require('../utils/email');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
@@ -185,6 +186,176 @@ const uploadProfileAvatar = async (req, res, next) => {
   }
 };
 
+// PATCH /api/users/me/preferred-currency
+const updatePreferredCurrency = async (req, res, next) => {
+  try {
+    const { preferredCurrency } = req.body;
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { preferredCurrency },
+      { new: true, runValidators: true }
+    );
+
+    res.status(200).json({
+      success: true,
+      message: 'Preferred currency updated successfully.',
+      data: { user: user.toJSON() },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// POST /api/users/me/shipping-profiles
+const addShippingProfile = async (req, res, next) => {
+  try {
+    const { name, fullName, company, address, city, country, postalCode, phone, isDefault } = req.body;
+
+    const user = await User.findById(req.user._id);
+    const newProfile = { name, fullName, company, address, city, country, postalCode, phone, isDefault };
+
+    if (isDefault) {
+      user.shippingProfiles.forEach((p) => {
+        p.isDefault = false;
+      });
+    }
+
+    user.shippingProfiles.push(newProfile);
+
+    await user.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Shipping profile added successfully.',
+      data: { user: user.toJSON() },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// PATCH /api/users/me/shipping-profiles/:profileId
+const updateShippingProfile = async (req, res, next) => {
+  try {
+    const { profileId } = req.params;
+    const updates = req.body;
+
+    const user = await User.findById(req.user._id);
+    const profile = user.shippingProfiles.id(profileId);
+    if (!profile) {
+      return res.status(404).json({ success: false, message: 'Shipping profile not found.' });
+    }
+
+    Object.assign(profile, updates);
+
+    if (updates.isDefault) {
+      user.shippingProfiles.forEach((p) => {
+        if (p._id.toString() !== profileId.toString()) {
+          p.isDefault = false;
+        }
+      });
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Shipping profile updated successfully.',
+      data: { user: user.toJSON() },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// DELETE /api/users/me/shipping-profiles/:profileId
+const deleteShippingProfile = async (req, res, next) => {
+  try {
+    const { profileId } = req.params;
+
+    const user = await User.findById(req.user._id);
+    const profile = user.shippingProfiles.id(profileId);
+    if (!profile) {
+      return res.status(404).json({ success: false, message: 'Shipping profile not found.' });
+    }
+
+    profile.remove();
+    await user.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Shipping profile removed.',
+      data: { user: user.toJSON() },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/users/me/orders
+const getUserOrders = async (req, res, next) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 10));
+    const skip = (page - 1) * limit;
+
+    const filter = { user: req.user._id };
+    if (req.query.status) {
+      filter.status = req.query.status;
+    }
+
+    const [orders, total] = await Promise.all([
+      Order.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('items.product', 'name images')
+        .lean(),
+      Order.countDocuments(filter),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        orders,
+        pagination: {
+          page,
+          pages: totalPages,
+          total,
+          limit,
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/users/me/orders/:id
+const getUserOrderById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const order = await Order.findOne({
+      _id: id,
+      user: req.user._id,
+    }).populate('items.product', 'name images description');
+
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: { order },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getProfile,
   updateUsername,
@@ -192,4 +363,10 @@ module.exports = {
   changePassword,
   updateProfile,
   uploadProfileAvatar,
+  updatePreferredCurrency,
+  addShippingProfile,
+  updateShippingProfile,
+  deleteShippingProfile,
+  getUserOrders,
+  getUserOrderById,
 };
