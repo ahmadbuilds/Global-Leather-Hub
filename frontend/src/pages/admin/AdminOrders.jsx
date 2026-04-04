@@ -50,6 +50,8 @@ export default function AdminOrders() {
   const [error, setError] = useState(null);
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [updatingStatus, setUpdatingStatus] = useState(null);
+  const [trackingForm, setTrackingForm] = useState({ carrier: "", number: "", url: "" });
+  const [savingTracking, setSavingTracking] = useState(null);
 
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [statusFilter, setStatusFilter] = useState(
@@ -92,6 +94,24 @@ export default function AdminOrders() {
       p.set("page", "1");
       return p;
     });
+  };
+
+  const handleSaveTracking = async (orderId) => {
+    try {
+      setSavingTracking(orderId);
+      await api.patch(`/admin/orders/${orderId}/tracking`, {
+        carrier: trackingForm.carrier || undefined,
+        number: trackingForm.number.trim(),
+        url: trackingForm.url.trim() || undefined,
+      });
+      toast.success("Tracking saved.");
+      setTrackingForm({ carrier: "", number: "", url: "" });
+      fetchOrders();
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to save tracking.");
+    } finally {
+      setSavingTracking(null);
+    }
   };
 
   const handleStatusUpdate = async (orderId, newStatus) => {
@@ -214,7 +234,10 @@ export default function AdminOrders() {
         <div className="space-y-3">
           {orders.map((order) => {
             const isExpanded = expandedOrder === order._id;
-            const transitions = VALID_TRANSITIONS[order.status] || [];
+            const transitions = (VALID_TRANSITIONS[order.status] || []).filter((s) => {
+              if (order.paymentStatus === "unpaid" && s !== "cancelled") return false;
+              return true;
+            });
 
             return (
               <div
@@ -223,9 +246,16 @@ export default function AdminOrders() {
               >
                 {/* Order Header Row */}
                 <button
-                  onClick={() =>
-                    setExpandedOrder(isExpanded ? null : order._id)
-                  }
+                  onClick={() => {
+                    setExpandedOrder(isExpanded ? null : order._id);
+                    if (!isExpanded) {
+                      setTrackingForm({
+                        carrier: order.tracking?.carrier || "",
+                        number: order.tracking?.number || "",
+                        url: order.tracking?.url || "",
+                      });
+                    }
+                  }}
                   className="w-full flex items-center justify-between p-4 hover:bg-linen/20 transition-colors text-left"
                 >
                   <div className="flex items-center gap-4 flex-1 min-w-0">
@@ -238,10 +268,15 @@ export default function AdminOrders() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-4 flex-wrap justify-end">
                     <span className="text-sm font-medium text-espresso hidden sm:block">
                       ${order.totalAmount?.toFixed(2)}
                     </span>
+                    {order.paymentStatus === "unpaid" && (
+                      <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-amber-300 text-amber-800 bg-amber-50">
+                        Awaiting payment
+                      </span>
+                    )}
                     <span
                       className={`inline-flex text-[11px] font-medium px-2.5 py-1 rounded-full border ${
                         STATUS_COLORS[order.status] || ""
@@ -343,6 +378,65 @@ export default function AdminOrders() {
                         <p className="text-sm text-espresso">{order.notes}</p>
                       </div>
                     )}
+
+                    <div className="border-t border-border/40 pt-3">
+                      <p className="text-xs font-medium text-fog tracking-wide uppercase mb-2">
+                        Shipment tracking
+                      </p>
+                      <p className="text-[11px] text-fog mb-2">
+                        Best practice: add carrier and tracking number when you ship. Customers see this in their order detail page.
+                      </p>
+                      {order.tracking?.number && (
+                        <p className="text-sm text-espresso mb-2">
+                          Current: {order.tracking.carrier && `${order.tracking.carrier} · `}
+                          {order.tracking.number}
+                          {order.tracking.url && (
+                            <a
+                              href={order.tracking.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="ml-2 text-tan underline"
+                            >
+                              Track
+                            </a>
+                          )}
+                        </p>
+                      )}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <input
+                          placeholder="Carrier (e.g. DHL)"
+                          value={trackingForm.carrier}
+                          onChange={(e) =>
+                            setTrackingForm((f) => ({ ...f, carrier: e.target.value }))
+                          }
+                          className="field text-xs py-2"
+                        />
+                        <input
+                          placeholder="Tracking number"
+                          value={trackingForm.number}
+                          onChange={(e) =>
+                            setTrackingForm((f) => ({ ...f, number: e.target.value }))
+                          }
+                          className="field text-xs py-2"
+                        />
+                        <input
+                          placeholder="Tracking URL (https://...)"
+                          value={trackingForm.url}
+                          onChange={(e) =>
+                            setTrackingForm((f) => ({ ...f, url: e.target.value }))
+                          }
+                          className="field text-xs py-2 sm:col-span-1"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        disabled={savingTracking === order._id || !trackingForm.number?.trim()}
+                        onClick={() => handleSaveTracking(order._id)}
+                        className="btn-outline text-xs py-2 px-4 mt-2"
+                      >
+                        {savingTracking === order._id ? "Saving…" : "Save tracking"}
+                      </button>
+                    </div>
 
                     {/* Status Update */}
                     {transitions.length > 0 && (
