@@ -9,7 +9,19 @@ import {
   ArrowRight,
   AlertCircle,
   Loader2,
+  DollarSign,
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  ComposedChart,
+  Area,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+} from "recharts";
 
 const STATUS_COLORS = {
   pending: "bg-yellow-100 text-yellow-800 border-yellow-200",
@@ -22,12 +34,26 @@ const STATUS_COLORS = {
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState(null);
+  const [analytics, setAnalytics] = useState(null);
+  const [period, setPeriod] = useState("30d");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     fetchStats();
   }, []);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { data } = await api.get(`/admin/dashboard/analytics?period=${period}`);
+        setAnalytics(data.data);
+      } catch {
+        setAnalytics(null);
+      }
+    };
+    load();
+  }, [period]);
 
   const fetchStats = async () => {
     try {
@@ -80,11 +106,22 @@ export default function AdminDashboard() {
       link: "/admin/orders",
     },
     {
+      label: "Revenue (paid)",
+      value: `$${(stats.totalRevenue ?? 0).toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`,
+      icon: DollarSign,
+      color: "text-sage",
+      bg: "bg-sage/10",
+      link: "/admin/orders",
+    },
+    {
       label: "Total Customers",
       value: stats.totalCustomers,
       icon: Users,
-      color: "text-sage",
-      bg: "bg-sage/10",
+      color: "text-sienna",
+      bg: "bg-sienna/10",
       link: "/admin/customers",
     },
     {
@@ -96,6 +133,13 @@ export default function AdminDashboard() {
       link: "/admin/orders?status=pending",
     },
   ];
+
+  const chartData =
+    analytics?.series?.map((row) => ({
+      date: row.date,
+      revenue: Math.round(row.revenue * 100) / 100,
+      orders: row.orders,
+    })) || [];
 
   return (
     <div className="space-y-8 animate-fade-up">
@@ -117,7 +161,7 @@ export default function AdminDashboard() {
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
@@ -135,7 +179,7 @@ export default function AdminDashboard() {
                 <ArrowRight className="w-4 h-4 text-fog opacity-0 group-hover:opacity-100 transition-all duration-300 group-hover:translate-x-1" />
               </div>
               <p
-                className="text-espresso text-3xl font-light"
+                className="text-espresso text-3xl font-light truncate"
                 style={{ fontFamily: '"Playfair Display", serif' }}
               >
                 {stat.value}
@@ -146,6 +190,72 @@ export default function AdminDashboard() {
             </Link>
           );
         })}
+      </div>
+
+      {/* Revenue & orders over time */}
+      <div className="card">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-5">
+          <h2
+            className="text-espresso text-lg"
+            style={{ fontFamily: '"Playfair Display", serif', fontWeight: 400 }}
+          >
+            Earnings & orders
+          </h2>
+          <div className="flex rounded-full border border-border p-1 bg-linen/30">
+            {[
+              { id: "7d", label: "7d" },
+              { id: "30d", label: "30d" },
+              { id: "12w", label: "12 wk" },
+            ].map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => setPeriod(p.id)}
+                className={`px-4 py-1.5 text-xs font-medium rounded-full transition-colors ${
+                  period === p.id ? "bg-espresso text-paper shadow-soft" : "text-fog hover:text-espresso"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        {chartData.length > 0 ? (
+          <div className="h-72 w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(44,26,14,0.08)" />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: "#8a7a6a" }} />
+                <YAxis
+                  yAxisId="left"
+                  tick={{ fontSize: 10, fill: "#8a7a6a" }}
+                  tickFormatter={(v) => `$${v}`}
+                />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: "#8a7a6a" }} />
+                <Tooltip
+                  contentStyle={{
+                    borderRadius: 12,
+                    border: "1px solid #e8e0d6",
+                    fontSize: 12,
+                  }}
+                />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Area
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="revenue"
+                  name="Revenue"
+                  stroke="#8b6914"
+                  fill="#c4a574"
+                  fillOpacity={0.15}
+                />
+                <Bar yAxisId="right" dataKey="orders" name="Orders placed" fill="#5E7A5A" radius={[4, 4, 0, 0]} />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <p className="text-fog text-sm text-center py-8">No paid orders in this period yet.</p>
+        )}
       </div>
 
       {/* Recent Orders */}
