@@ -14,11 +14,17 @@ import AboutPage from "./pages/AboutPage";
 import ContactPage from "./pages/ContactPage";
 import ProductsPage from "./pages/ProductsPage";
 import ProductDetailPage from "./pages/ProductDetailPage";
+import BulkOrderPage from "./pages/BulkOrderPage";
+import OrdersPage from "./pages/OrdersPage";
+import OrderDetailPage from "./pages/OrderDetailPage";
 import AdminDashboard from "./pages/admin/AdminDashboard";
 import AdminProducts from "./pages/admin/AdminProducts";
 import AdminProductForm from "./pages/admin/AdminProductForm";
 import AdminOrders from "./pages/admin/AdminOrders";
 import AdminCustomers from "./pages/admin/AdminCustomers";
+import CartPage from "./pages/CartPage";
+import CheckoutSuccessPage from "./pages/CheckoutSuccessPage";
+import AdminBulkOrders from "./pages/admin/AdminBulkOrders";
 import Lenis from "lenis";
 
 const AppLayout = ({ children }) => {
@@ -112,6 +118,46 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
+            <Route
+              path="/cart"
+              element={
+                <ProtectedRoute>
+                  <CartPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/checkout/success"
+              element={
+                <ProtectedRoute>
+                  <CheckoutSuccessPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/bulk-orders"
+              element={
+                <ProtectedRoute>
+                  <BulkOrderPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/orders"
+              element={
+                <ProtectedRoute>
+                  <OrdersPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/orders/:id"
+              element={
+                <ProtectedRoute>
+                  <OrderDetailPage />
+                </ProtectedRoute>
+              }
+            />
             {/* Admin Routes - Only accessible by admin role */}
             <Route
               path="/admin"
@@ -126,6 +172,7 @@ export default function App() {
               <Route path="products/new" element={<AdminProductForm />} />
               <Route path="products/:id/edit" element={<AdminProductForm />} />
               <Route path="orders" element={<AdminOrders />} />
+              <Route path="bulk-orders" element={<AdminBulkOrders />} />
               <Route path="customers" element={<AdminCustomers />} />
             </Route>
             <Route
