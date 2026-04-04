@@ -3,6 +3,7 @@ import {
   User, Mail, Lock, Shield, CheckCircle, AlertCircle,
   Eye, EyeOff, Edit3, Save, X, LogOut,
   Globe, Phone, Building2, Camera,
+  DollarSign, MapPin, Plus, Trash2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useAuth } from "../context/authContext";
@@ -47,6 +48,16 @@ export default function ProfilePage() {
   const [infoForm,     setInfoForm]     = useState({ company: user?.company || "", country: user?.country || "", phone: user?.phone || "" });
   const [infoLoading,  setInfoLoading]  = useState(false);
   const [avatarLoading,setAvatarLoading]= useState(false);
+
+  const [preferredCurrency, setPreferredCurrency] = useState(user?.preferredCurrency || "USD");
+  const [currencyLoading, setCurrencyLoading] = useState(false);
+
+  const [shippingProfiles, setShippingProfiles] = useState(user?.shippingProfiles || []);
+  const [editingShipping, setEditingShipping] = useState(null);
+  const [shippingForm, setShippingForm] = useState({
+    name: "", fullName: "", company: "", address: "", city: "", country: "", postalCode: "", phone: "", isDefault: false
+  });
+  const [shippingLoading, setShippingLoading] = useState(false);
 
   const [pwStep,       setPwStep]       = useState(0);
   const [pwOtp,        setPwOtp]        = useState(["","","","","",""]);
@@ -140,6 +151,86 @@ export default function ProfilePage() {
       updateUser({ avatar: data.data.user.avatar }); toast.success("Profile image updated");
     } catch (err) { toast.error(err.response?.data?.message || "Failed to upload image"); }
     finally { setAvatarLoading(false); event.target.value = ""; }
+  };
+
+  const handleCurrencyUpdate = async () => {
+    setCurrencyLoading(true);
+    try {
+      await api.patch("/users/me/preferred-currency", { preferredCurrency });
+      updateUser({ preferredCurrency });
+      toast.success("Preferred currency updated");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to update currency");
+    } finally {
+      setCurrencyLoading(false);
+    }
+  };
+
+  const handleAddShippingProfile = async () => {
+    if (!shippingForm.name || !shippingForm.fullName || !shippingForm.address || !shippingForm.city || !shippingForm.country || !shippingForm.phone) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
+    setShippingLoading(true);
+    try {
+      const { data } = await api.post("/users/me/shipping-profiles", shippingForm);
+      setShippingProfiles(data.data.user.shippingProfiles);
+      updateUser({ shippingProfiles: data.data.user.shippingProfiles });
+      setShippingForm({ name: "", fullName: "", company: "", address: "", city: "", country: "", postalCode: "", phone: "", isDefault: false });
+      toast.success("Shipping profile added");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to add shipping profile");
+    } finally {
+      setShippingLoading(false);
+    }
+  };
+
+  const handleUpdateShippingProfile = async (profileId) => {
+    setShippingLoading(true);
+    try {
+      const { data } = await api.patch(`/users/me/shipping-profiles/${profileId}`, shippingForm);
+      setShippingProfiles(data.data.user.shippingProfiles);
+      updateUser({ shippingProfiles: data.data.user.shippingProfiles });
+      setEditingShipping(null);
+      setShippingForm({ name: "", fullName: "", company: "", address: "", city: "", country: "", postalCode: "", phone: "", isDefault: false });
+      toast.success("Shipping profile updated");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to update shipping profile");
+    } finally {
+      setShippingLoading(false);
+    }
+  };
+
+  const handleDeleteShippingProfile = async (profileId) => {
+    if (!confirm("Are you sure you want to delete this shipping profile?")) return;
+    try {
+      const { data } = await api.delete(`/users/me/shipping-profiles/${profileId}`);
+      setShippingProfiles(data.data.user.shippingProfiles);
+      updateUser({ shippingProfiles: data.data.user.shippingProfiles });
+      toast.success("Shipping profile deleted");
+    } catch (err) {
+      toast.error(err.response?.data?.message || "Failed to delete shipping profile");
+    }
+  };
+
+  const startEditShipping = (profile) => {
+    setEditingShipping(profile._id);
+    setShippingForm({
+      name: profile.name || "",
+      fullName: profile.fullName || "",
+      company: profile.company || "",
+      address: profile.address || "",
+      city: profile.city || "",
+      country: profile.country || "",
+      postalCode: profile.postalCode || "",
+      phone: profile.phone || "",
+      isDefault: profile.isDefault || false,
+    });
+  };
+
+  const cancelEditShipping = () => {
+    setEditingShipping(null);
+    setShippingForm({ name: "", fullName: "", company: "", address: "", city: "", country: "", postalCode: "", phone: "", isDefault: false });
   };
 
   const Section = ({ title, icon: Icon, action, children }) => (
@@ -298,6 +389,148 @@ export default function ProfilePage() {
                       <div>
                         <p className="text-[10px] uppercase tracking-widest text-fog/60">{label}</p>
                         <p className={value ? "text-espresso text-sm mt-0.5" : "text-fog/40 text-sm italic mt-0.5"}>{value || "Not provided"}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Section>
+
+            {/* Preferred Currency */}
+            <Section title="Preferred Currency" icon={DollarSign}>
+              <div className="space-y-3">
+                <p className="text-fog text-sm">Select your preferred currency for pricing display and quotes.</p>
+                <select
+                  value={preferredCurrency}
+                  onChange={(e) => setPreferredCurrency(e.target.value)}
+                  className="field"
+                >
+                  <option value="USD">USD - US Dollar</option>
+                  <option value="EUR">EUR - Euro</option>
+                  <option value="GBP">GBP - British Pound</option>
+                  <option value="AUD">AUD - Australian Dollar</option>
+                  <option value="CAD">CAD - Canadian Dollar</option>
+                  <option value="CNY">CNY - Chinese Yuan</option>
+                </select>
+                <button
+                  onClick={handleCurrencyUpdate}
+                  disabled={currencyLoading || preferredCurrency === user?.preferredCurrency}
+                  className="btn-primary w-full justify-center text-[13px] py-3"
+                >
+                  {currencyLoading ? "Saving…" : <><Save className="w-3.5 h-3.5" /> Save Currency</>}
+                </button>
+              </div>
+            </Section>
+
+            {/* Shipping Profiles */}
+            <Section title="Shipping Profiles" icon={MapPin}
+              action={<button onClick={() => setEditingShipping("new")} className="btn-ghost text-[13px]"><Plus className="w-3.5 h-3.5" /> Add Profile</button>}
+            >
+              {editingShipping && (
+                <div className="space-y-4 mb-6 p-4 bg-linen/50 border border-border rounded-xl">
+                  <h4 className="text-espresso font-medium">{editingShipping === "new" ? "Add Shipping Profile" : "Edit Shipping Profile"}</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <input
+                      value={shippingForm.name}
+                      onChange={(e) => setShippingForm(p => ({ ...p, name: e.target.value }))}
+                      className="field"
+                      placeholder="Profile name (e.g. Office, Warehouse)"
+                    />
+                    <input
+                      value={shippingForm.fullName}
+                      onChange={(e) => setShippingForm(p => ({ ...p, fullName: e.target.value }))}
+                      className="field"
+                      placeholder="Full name"
+                    />
+                    <input
+                      value={shippingForm.company}
+                      onChange={(e) => setShippingForm(p => ({ ...p, company: e.target.value }))}
+                      className="field"
+                      placeholder="Company (optional)"
+                    />
+                    <input
+                      value={shippingForm.phone}
+                      onChange={(e) => setShippingForm(p => ({ ...p, phone: e.target.value }))}
+                      className="field"
+                      placeholder="Phone number"
+                    />
+                    <input
+                      value={shippingForm.address}
+                      onChange={(e) => setShippingForm(p => ({ ...p, address: e.target.value }))}
+                      className="field md:col-span-2"
+                      placeholder="Street address"
+                    />
+                    <input
+                      value={shippingForm.city}
+                      onChange={(e) => setShippingForm(p => ({ ...p, city: e.target.value }))}
+                      className="field"
+                      placeholder="City"
+                    />
+                    <input
+                      value={shippingForm.country}
+                      onChange={(e) => setShippingForm(p => ({ ...p, country: e.target.value }))}
+                      className="field"
+                      placeholder="Country"
+                    />
+                    <input
+                      value={shippingForm.postalCode}
+                      onChange={(e) => setShippingForm(p => ({ ...p, postalCode: e.target.value }))}
+                      className="field"
+                      placeholder="Postal code"
+                    />
+                  </div>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={shippingForm.isDefault}
+                      onChange={(e) => setShippingForm(p => ({ ...p, isDefault: e.target.checked }))}
+                      className="rounded border-border"
+                    />
+                    Set as default shipping address
+                  </label>
+                  <div className="flex gap-3">
+                    <button onClick={cancelEditShipping} className="flex-1 btn-outline text-[13px] py-2">Cancel</button>
+                    <button
+                      onClick={editingShipping === "new" ? handleAddShippingProfile : () => handleUpdateShippingProfile(editingShipping)}
+                      disabled={shippingLoading}
+                      className="flex-1 btn-primary justify-center text-[13px] py-2"
+                    >
+                      {shippingLoading ? "Saving…" : <><Save className="w-3.5 h-3.5" /> {editingShipping === "new" ? "Add Profile" : "Update Profile"}</>}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {shippingProfiles.length === 0 ? (
+                <div className="text-center py-8 text-fog/60">
+                  <MapPin className="w-8 h-8 mx-auto mb-3 opacity-50" />
+                  <p className="text-sm">No shipping profiles yet</p>
+                  <p className="text-xs mt-1">Add your shipping addresses for faster checkout</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {shippingProfiles.map((profile) => (
+                    <div key={profile._id} className="bg-linen/50 border border-border rounded-xl p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <h5 className="text-espresso font-medium">{profile.name || profile.fullName}</h5>
+                          {profile.isDefault && <span className="badge-sage text-[10px]">Default</span>}
+                        </div>
+                        <div className="flex gap-2">
+                          <button onClick={() => startEditShipping(profile)} className="text-tan hover:text-sienna">
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button onClick={() => handleDeleteShippingProfile(profile._id)} className="text-rust hover:text-red-600">
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="text-sm text-fog space-y-1">
+                        <p>{profile.fullName}</p>
+                        {profile.company && <p>{profile.company}</p>}
+                        <p>{profile.address}</p>
+                        <p>{profile.city}, {profile.country} {profile.postalCode}</p>
+                        <p>{profile.phone}</p>
                       </div>
                     </div>
                   ))}
