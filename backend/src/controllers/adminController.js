@@ -1,14 +1,25 @@
+const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const Order = require('../models/Order');
 const User = require('../models/User');
+const BulkOrder = require('../models/BulkOrder');
 const { uploadBufferToCloudinary, deleteFromCloudinary } = require('../utils/cloudinary');
 const logger = require('../utils/logger');
+const {
+  removeProductFromAllCarts,
+  reconcileCartsForProduct,
+  cancelUnpaidOrdersContainingProduct,
+} = require('../utils/productCartSync');
 
+
+const paidOrderMatch = {
+  $or: [{ paymentStatus: 'paid' }, { paymentStatus: { $exists: false } }],
+};
 
 // GET /api/admin/dashboard
 const getDashboardStats = async (req, res, next) => {
   try {
-    const [totalProducts, totalOrders, totalCustomers, recentOrders, ordersByStatus] =
+    const [totalProducts, totalOrders, totalCustomers, recentOrders, ordersByStatus, revenueAgg] =
       await Promise.all([
         Product.countDocuments(),
         Order.countDocuments(),
@@ -21,6 +32,10 @@ const getDashboardStats = async (req, res, next) => {
         Order.aggregate([
           { $group: { _id: '$status', count: { $sum: 1 } } },
         ]),
+        Order.aggregate([
+          { $match: paidOrderMatch },
+          { $group: { _id: null, totalRevenue: { $sum: '$totalAmount' } } },
+        ]),
       ]);
 
     const statusCounts = {};
@@ -28,14 +43,59 @@ const getDashboardStats = async (req, res, next) => {
       statusCounts[s._id] = s.count;
     });
 
+    const totalRevenue = revenueAgg[0]?.totalRevenue || 0;
+
     res.status(200).json({
       success: true,
       data: {
         totalProducts,
         totalOrders,
         totalCustomers,
+        totalRevenue,
         recentOrders,
         ordersByStatus: statusCounts,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/admin/dashboard/analytics?period=7d|30d|12w
+const getDashboardAnalytics = async (req, res, next) => {
+  try {
+    const period = req.query.period || '30d';
+    const start = new Date();
+    if (period === '7d') start.setUTCDate(start.getUTCDate() - 7);
+    else if (period === '12w') start.setUTCDate(start.getUTCDate() - 84);
+    else start.setUTCDate(start.getUTCDate() - 30);
+
+    const match = {
+      createdAt: { $gte: start },
+      ...paidOrderMatch,
+    };
+
+    const series = await Order.aggregate([
+      { $match: match },
+      {
+        $group: {
+          _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt', timezone: 'UTC' } },
+          revenue: { $sum: '$totalAmount' },
+          orders: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        period,
+        series: series.map((row) => ({
+          date: row._id,
+          revenue: row.revenue,
+          orders: row.orders,
+        })),
       },
     });
   } catch (error) {
@@ -259,6 +319,9 @@ const updateProduct = async (req, res, next) => {
 
     await product.save();
 
+    await reconcileCartsForProduct(product._id);
+    await cancelUnpaidOrdersContainingProduct(product._id);
+
     logger.info(`Product updated: ${product.name} by admin ${req.user.email}`);
 
     res.status(200).json({
@@ -283,6 +346,14 @@ const deleteProduct = async (req, res, next) => {
       });
     }
 
+    const id = req.params.id;
+    await removeProductFromAllCarts(id);
+    await cancelUnpaidOrdersContainingProduct(id);
+    await BulkOrder.updateMany(
+      { 'products.productId': id },
+      { $pull: { products: { productId: new mongoose.Types.ObjectId(id) } } }
+    );
+
     // Clean up Cloudinary images
     for (const image of product.images) {
       try {
@@ -292,7 +363,7 @@ const deleteProduct = async (req, res, next) => {
       }
     }
 
-    await Product.findByIdAndDelete(req.params.id);
+    await Product.findByIdAndDelete(id);
 
     logger.info(`Product deleted: ${product.name} by admin ${req.user.email}`);
 
@@ -403,6 +474,14 @@ const updateOrderStatus = async (req, res, next) => {
       });
     }
 
+    if (order.paymentStatus === 'unpaid' && status !== 'cancelled') {
+      return res.status(400).json({
+        success: false,
+        message:
+          'Order is awaiting payment. Cancel it or wait until Stripe marks the order as paid.',
+      });
+    }
+
     order.status = status;
     await order.save();
 
@@ -418,6 +497,109 @@ const updateOrderStatus = async (req, res, next) => {
   }
 };
 
+
+// PATCH /api/admin/orders/:id/tracking — shipment tracking (carrier, number, public URL)
+const updateOrderTracking = async (req, res, next) => {
+  try {
+    const { carrier, number, url } = req.body;
+    const order = await Order.findById(req.params.id);
+    if (!order) {
+      return res.status(404).json({ success: false, message: 'Order not found.' });
+    }
+
+    if (!number || !String(number).trim()) {
+      return res.status(400).json({ success: false, message: 'Tracking number is required.' });
+    }
+
+    if (url && url.trim() && !/^https?:\/\//i.test(url.trim())) {
+      return res.status(400).json({ success: false, message: 'Tracking URL must start with http:// or https://' });
+    }
+
+    order.tracking = {
+      carrier: carrier || undefined,
+      number: String(number).trim(),
+      url: url && String(url).trim() ? String(url).trim() : undefined,
+      updatedAt: new Date(),
+    };
+
+    await order.save();
+
+    logger.info(`Tracking set for order ${order.orderNumber} by admin ${req.user.email}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Tracking information updated.',
+      data: { order },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// GET /api/admin/bulk-orders
+const getAllBulkOrders = async (req, res, next) => {
+  try {
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 10));
+    const skip = (page - 1) * limit;
+
+    const filter = {};
+    if (req.query.status) filter.status = req.query.status;
+
+    const [orders, total] = await Promise.all([
+      BulkOrder.find(filter)
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .populate('user', 'username email company country')
+        .lean(),
+      BulkOrder.countDocuments(filter),
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        bulkOrders: orders,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// PATCH /api/admin/bulk-orders/:id
+const updateBulkOrder = async (req, res, next) => {
+  try {
+    const { status, adminNotes, quotationDetails } = req.body;
+    const bulkOrder = await BulkOrder.findById(req.params.id);
+    if (!bulkOrder) {
+      return res.status(404).json({ success: false, message: 'Bulk order not found.' });
+    }
+
+    if (status) bulkOrder.status = status;
+    if (adminNotes !== undefined) bulkOrder.adminNotes = adminNotes;
+    if (quotationDetails && typeof quotationDetails === 'object') {
+      bulkOrder.quotationDetails = bulkOrder.quotationDetails || {};
+      Object.assign(bulkOrder.quotationDetails, quotationDetails);
+    }
+
+    await bulkOrder.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Bulk quotation updated.',
+      data: { bulkOrder },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
 
 // GET /api/admin/customers
 const getAllCustomers = async (req, res, next) => {
@@ -464,6 +646,7 @@ const getAllCustomers = async (req, res, next) => {
 
 module.exports = {
   getDashboardStats,
+  getDashboardAnalytics,
   getAllProductsAdmin,
   getProductById,
   createProduct,
@@ -472,5 +655,8 @@ module.exports = {
   getAllOrders,
   getOrderById,
   updateOrderStatus,
+  updateOrderTracking,
+  getAllBulkOrders,
+  updateBulkOrder,
   getAllCustomers,
 };
