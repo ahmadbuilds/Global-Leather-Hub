@@ -11,10 +11,20 @@ const adminRoutes = require('./routes/adminRoutes');
 const productRoutes = require('./routes/productRoutes');
 const contactRoutes = require('./routes/contactRoutes');
 const cartRoutes = require('./routes/cartRoutes');
+const bulkOrderRoutes = require('./routes/bulkOrderRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
+const paymentController = require('./controllers/paymentController');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
 
 const app = express();
+
+// Stripe webhooks require the raw body for signature verification
+app.post(
+  '/api/webhooks/stripe',
+  express.raw({ type: 'application/json' }),
+  paymentController.stripeWebhook
+);
 
 app.use(helmet());
 app.use(xssClean());
@@ -68,6 +78,8 @@ app.use('/api/users', userRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/cart', cartRoutes);
+app.use('/api/bulk-orders', bulkOrderRoutes);
+app.use('/api/payments', paymentRoutes);
 app.use('/api/contact', contactRoutes);
 
 app.use(notFound);
