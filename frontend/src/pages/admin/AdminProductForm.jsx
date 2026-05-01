@@ -25,8 +25,125 @@ const STATUSES = [
   { value: "archived", label: "Archived" },
 ];
 
-const EMPTY_TIER = { minQuantity: "", maxQuantity: "", pricePerUnit: "" };
+const EMPTY_TIER = { minQuantity: "", maxQuantity: "", price: "" };
 const EMPTY_SPEC = { label: "", value: "" };
+const normalizePricingTiers = (tiers = []) =>
+  tiers
+    .map((t) => ({
+      minQuantity: t.minQuantity != null ? String(t.minQuantity) : "",
+      maxQuantity: t.maxQuantity != null ? String(t.maxQuantity) : "",
+      price: t.price != null ? String(t.price) : "",
+    }))
+    .sort((a, b) => Number(a.minQuantity || 0) - Number(b.minQuantity || 0));
+
+const parseTierNumber = (value) => {
+  if (value === "" || value === null || value === undefined) return null;
+  const num = Number(value);
+  return Number.isFinite(num) ? num : NaN;
+};
+
+const buildTierPayload = (tiers = []) => {
+  if (!Array.isArray(tiers) || tiers.length === 0) {
+    return { error: "At least one pricing tier is required." };
+  }
+
+  const parsed = tiers.map((tier, index) => ({
+    minQuantity: parseTierNumber(tier.minQuantity),
+    maxQuantity: parseTierNumber(tier.maxQuantity),
+    price: parseTierNumber(tier.price),
+    inputIndex: index,
+  }));
+
+  for (const tier of parsed) {
+    if (!Number.isInteger(tier.minQuantity) || tier.minQuantity < 1) {
+      return {
+        error: `Tier ${tier.inputIndex + 1}: min quantity must be a positive integer.`,
+      };
+    }
+    if (!Number.isFinite(tier.price) || tier.price <= 0) {
+      return {
+        error: `Tier ${tier.inputIndex + 1}: price per unit must be greater than 0.`,
+      };
+    }
+    if (tier.maxQuantity !== null) {
+      if (!Number.isInteger(tier.maxQuantity)) {
+        return {
+          error: `Tier ${tier.inputIndex + 1}: max quantity must be an integer.`,
+        };
+      }
+      if (tier.maxQuantity < tier.minQuantity) {
+        return {
+          error: `Tier ${tier.inputIndex + 1}: max quantity cannot be less than min quantity.`,
+        };
+      }
+    }
+  }
+
+  parsed.sort((a, b) => a.minQuantity - b.minQuantity);
+
+  const seen = new Set();
+  for (const tier of parsed) {
+    if (seen.has(tier.minQuantity)) {
+      return {
+        error: `Duplicate min quantity ${tier.minQuantity} is not allowed.`,
+      };
+    }
+    seen.add(tier.minQuantity);
+  }
+
+  if (parsed[0].minQuantity > 1) {
+    parsed.unshift({
+      minQuantity: 1,
+      maxQuantity: parsed[0].minQuantity - 1,
+      price: parsed[0].price,
+      inputIndex: -1,
+    });
+  }
+
+  for (let i = 0; i < parsed.length; i += 1) {
+    const tier = parsed[i];
+    const nextTier = parsed[i + 1];
+
+    if (tier.maxQuantity === null && nextTier) {
+      if (nextTier.minQuantity <= tier.minQuantity) {
+        return { error: "Pricing tier ranges cannot overlap." };
+      }
+      tier.maxQuantity = nextTier.minQuantity - 1;
+    }
+
+    if (nextTier) {
+      if (tier.maxQuantity === null) {
+        return { error: "Unlimited tier must be the last tier." };
+      }
+      if (tier.maxQuantity >= nextTier.minQuantity) {
+        return { error: "Pricing tier ranges cannot overlap." };
+      }
+      if (tier.maxQuantity + 1 < nextTier.minQuantity) {
+        return {
+          error: "Pricing tier ranges must be continuous with no gaps.",
+        };
+      }
+    }
+  }
+
+  const unlimitedIndex = parsed.findIndex((tier) => tier.maxQuantity === null);
+  if (unlimitedIndex !== -1 && unlimitedIndex !== parsed.length - 1) {
+    return { error: "Unlimited tier must be the last tier." };
+  }
+  if (parsed.filter((tier) => tier.maxQuantity === null).length > 1) {
+    return { error: "Only one unlimited tier is allowed." };
+  }
+
+  return {
+    tiers: parsed.map(({ inputIndex, ...tier }) => tier),
+  };
+};
+
+const normalizeIntegerInput = (value) => {
+  if (value === "") return "";
+  if (!/^\d+$/.test(value)) return null;
+  return value.replace(/^0+(?=\d)/, "");
+};
 
 export default function AdminProductForm() {
   const { id } = useParams();
@@ -77,14 +194,9 @@ export default function AdminProductForm() {
         material: product.material || "",
         fit: product.fit || "",
       });
+      const normalizedTiers = normalizePricingTiers(product.pricingTiers || []);
       setPricingTiers(
-        product.pricingTiers?.length > 0
-          ? product.pricingTiers.map((t) => ({
-              minQuantity: String(t.minQuantity),
-              maxQuantity: t.maxQuantity ? String(t.maxQuantity) : "",
-              pricePerUnit: String(t.pricePerUnit),
-            }))
-          : [{ ...EMPTY_TIER }],
+        normalizedTiers.length > 0 ? normalizedTiers : [{ ...EMPTY_TIER }],
       );
       setSpecifications(
         product.specifications?.length > 0
@@ -108,7 +220,13 @@ export default function AdminProductForm() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (name === "moq") {
+      const normalized = normalizeIntegerInput(value);
+      if (normalized === null) return;
+      setFormData((prev) => ({ ...prev, [name]: normalized }));
+    } else {
+      setFormData((prev) => ({ ...prev, [name]: value }));
+    }
     if (errors[name]) {
       setErrors((prev) => ({ ...prev, [name]: null }));
     }
@@ -116,9 +234,32 @@ export default function AdminProductForm() {
 
   // ── Pricing Tiers ──
   const handleTierChange = (index, field, value) => {
+    let nextValue = value;
+    if (field === "minQuantity" || field === "maxQuantity") {
+      const normalized = normalizeIntegerInput(value);
+      if (normalized === null) return;
+      nextValue = normalized;
+    }
+
     setPricingTiers((prev) => {
       const updated = [...prev];
-      updated[index] = { ...updated[index], [field]: value };
+      updated[index] = { ...updated[index], [field]: nextValue };
+
+      if (field === "minQuantity" && index > 0) {
+        const nextMin = Number(nextValue);
+        const prevMax = updated[index - 1].maxQuantity;
+        if (
+          (prevMax === "" || prevMax === null || prevMax === undefined) &&
+          Number.isFinite(nextMin) &&
+          nextMin > 1
+        ) {
+          updated[index - 1] = {
+            ...updated[index - 1],
+            maxQuantity: String(nextMin - 1),
+          };
+        }
+      }
+
       return updated;
     });
     if (errors.pricingTiers)
@@ -206,45 +347,23 @@ export default function AdminProductForm() {
     if (totalImages === 0)
       errs.images = "At least one product image is required.";
 
-    let tiersValid = true;
-    for (let i = 0; i < pricingTiers.length; i++) {
-      const tier = pricingTiers[i];
-      if (
-        !tier.minQuantity ||
-        isNaN(tier.minQuantity) ||
-        parseInt(tier.minQuantity) < 1
-      ) {
-        tiersValid = false;
-        break;
-      }
-      if (
-        !tier.pricePerUnit ||
-        isNaN(tier.pricePerUnit) ||
-        parseFloat(tier.pricePerUnit) <= 0
-      ) {
-        tiersValid = false;
-        break;
-      }
-      if (
-        tier.maxQuantity &&
-        (isNaN(tier.maxQuantity) ||
-          parseInt(tier.maxQuantity) < parseInt(tier.minQuantity))
-      ) {
-        tiersValid = false;
-        break;
-      }
+    const tierResult = buildTierPayload(pricingTiers);
+    if (tierResult.error) {
+      errs.pricingTiers = tierResult.error;
     }
-    if (!tiersValid)
-      errs.pricingTiers = "Please fill all pricing tiers correctly.";
 
     setErrors(errs);
-    return Object.keys(errs).length === 0;
+    return {
+      valid: Object.keys(errs).length === 0,
+      tiersPayload: tierResult.tiers,
+    };
   };
 
   // ── Submit ──
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validate()) return;
+    const validation = validate();
+    if (!validation.valid) return;
 
     try {
       setLoading(true);
@@ -259,11 +378,7 @@ export default function AdminProductForm() {
         formPayload.append("material", formData.material.trim());
       if (formData.fit.trim()) formPayload.append("fit", formData.fit.trim());
 
-      const tiersPayload = pricingTiers.map((t) => ({
-        minQuantity: parseInt(t.minQuantity),
-        maxQuantity: t.maxQuantity ? parseInt(t.maxQuantity) : null,
-        pricePerUnit: parseFloat(t.pricePerUnit),
-      }));
+      const tiersPayload = validation.tiersPayload || [];
       formPayload.append("pricingTiers", JSON.stringify(tiersPayload));
 
       // Clean empty specs
@@ -319,6 +434,9 @@ export default function AdminProductForm() {
     (img) => !imagesToRemove.includes(img.publicId),
   );
   const totalImageCount = activeExistingImages.length + newImages.length;
+  const tierPreview = buildTierPayload(pricingTiers);
+  const previewTiers = tierPreview.error ? [] : tierPreview.tiers || [];
+  const previewBasePrice = previewTiers[0]?.price || 0;
 
   return (
     <div className="max-w-3xl mx-auto animate-fade-up">
@@ -740,7 +858,7 @@ export default function AdminProductForm() {
           )}
         </div>
 
-        {/* ═══ Pricing Tiers ═══ */}
+        {/* ═══ Bulk Pricing ═══ */}
         <div className="card space-y-5">
           <div className="flex items-center justify-between">
             <h2
@@ -750,7 +868,7 @@ export default function AdminProductForm() {
                 fontWeight: 400,
               }}
             >
-              Pricing Tiers *
+              Bulk Pricing Tiers *
             </h2>
             <button
               type="button"
@@ -760,6 +878,10 @@ export default function AdminProductForm() {
               <Plus className="w-3.5 h-3.5" /> Add Tier
             </button>
           </div>
+          <p className="text-fog text-xs -mt-2">
+            Define quantity breaks for bulk pricing. The lowest tier is shown as
+            the starting price.
+          </p>
 
           {errors.pricingTiers && (
             <p className="text-rust text-xs flex items-center gap-1">
@@ -810,9 +932,9 @@ export default function AdminProductForm() {
                   <input
                     type="number"
                     step="0.01"
-                    value={tier.pricePerUnit}
+                    value={tier.price}
                     onChange={(e) =>
-                      handleTierChange(i, "pricePerUnit", e.target.value)
+                      handleTierChange(i, "price", e.target.value)
                     }
                     className="field py-2.5 text-[13px]"
                     placeholder="0.00"
@@ -831,6 +953,47 @@ export default function AdminProductForm() {
               </div>
             ))}
           </div>
+
+          {!tierPreview.error && previewTiers.length > 0 && (
+            <div className="mt-4 border border-border/60 rounded-xl overflow-hidden bg-paper">
+              <div className="grid grid-cols-3 px-4 py-2 text-[10px] uppercase tracking-widest text-fog/70 bg-linen/40">
+                <span>Range</span>
+                <span className="text-right">Price</span>
+                <span className="text-right">Savings</span>
+              </div>
+              {previewTiers.map((tier, idx) => {
+                const savings =
+                  previewBasePrice > 0
+                    ? Math.max(
+                        0,
+                        Math.round(
+                          ((previewBasePrice - tier.price) /
+                            previewBasePrice) *
+                            100,
+                        ),
+                      )
+                    : 0;
+                return (
+                  <div
+                    key={`preview-${idx}`}
+                    className="grid grid-cols-3 px-4 py-2 text-xs border-t border-border/60"
+                  >
+                    <span className="text-espresso">
+                      {tier.maxQuantity != null
+                        ? `${tier.minQuantity}-${tier.maxQuantity}`
+                        : `${tier.minQuantity}+`}
+                    </span>
+                    <span className="text-right text-espresso font-medium">
+                      ${Number(tier.price).toFixed(2)}
+                    </span>
+                    <span className="text-right text-sage font-medium">
+                      {savings > 0 ? `${savings}%` : "-"}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* ═══ Images ═══ */}
