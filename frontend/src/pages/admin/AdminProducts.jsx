@@ -284,7 +284,7 @@ export default function AdminProducts() {
                       </td>
                       <td className="py-3 px-4 text-sienna text-[13px] font-medium">
                         $
-                        {product.pricingTiers?.[0]?.pricePerUnit?.toFixed(2) ||
+                        {product.pricingTiers?.[0]?.price?.toFixed(2) ||
                           "—"}
                       </td>
                       <td className="py-3 px-4">
