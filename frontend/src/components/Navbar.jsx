@@ -2,7 +2,15 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/authContext";
 import api from "../utils/api";
-import { Menu, X, User, LogOut, ChevronDown, Shield, ShoppingCart } from "lucide-react";
+import {
+  Menu,
+  X,
+  User,
+  LogOut,
+  ChevronDown,
+  Shield,
+  ShoppingCart,
+} from "lucide-react";
 import toast from "react-hot-toast";
 
 const NAV_LINKS = [
@@ -35,16 +43,16 @@ export default function Navbar() {
 
   useEffect(() => {
     const fetchCart = async () => {
-      if (!isAuthenticated) {
+      if (!isAuthenticated || user?.role === "admin") {
         setCartCount(0);
         return;
       }
 
       try {
-        const { data } = await api.get('/cart');
+        const { data } = await api.get("/cart");
         setCartCount(data.data.items.length || 0);
       } catch (err) {
-        console.warn('Cart count failed', err);
+        console.warn("Cart count failed", err);
       }
     };
 
@@ -54,9 +62,9 @@ export default function Navbar() {
       fetchCart();
     };
 
-    window.addEventListener('cartUpdated', refreshCartCount);
-    return () => window.removeEventListener('cartUpdated', refreshCartCount);
-  }, [isAuthenticated]);
+    window.addEventListener("cartUpdated", refreshCartCount);
+    return () => window.removeEventListener("cartUpdated", refreshCartCount);
+  }, [isAuthenticated, user?.role]);
 
   const handleLogout = async () => {
     await logout();
@@ -95,7 +103,10 @@ export default function Navbar() {
 
           {/* ── Desktop links ── */}
           <div className="hidden md:flex items-center gap-0.5 animate-fade-down stagger-1">
-            {NAV_LINKS.filter(link => !(link.label === "Bulk Orders" && user?.role === "admin")).map((link) => {
+            {NAV_LINKS.filter(
+              (link) =>
+                !(link.label === "Bulk Orders" && user?.role === "admin"),
+            ).map((link) => {
               const active = location.pathname === link.href;
               return (
                 <Link
@@ -125,17 +136,19 @@ export default function Navbar() {
           <div className="hidden md:flex items-center gap-3 animate-fade-down stagger-2">
             {isAuthenticated ? (
               <>
-                <Link
-                  to="/cart"
-                  className="relative flex items-center justify-center w-9 h-9 rounded-full bg-paper border border-border hover:border-tan/60 transition-all duration-300"
-                >
-                  <ShoppingCart className="w-4 h-4 text-espresso" />
-                  {cartCount > 0 && (
-                    <span className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full bg-rust text-white text-[10px] font-semibold flex items-center justify-center px-1">
-                      {cartCount}
-                    </span>
-                  )}
-                </Link>
+                {user?.role !== "admin" && (
+                  <Link
+                    to="/cart"
+                    className="relative flex items-center justify-center w-9 h-9 rounded-full bg-paper border border-border hover:border-tan/60 transition-all duration-300"
+                  >
+                    <ShoppingCart className="w-4 h-4 text-espresso" />
+                    {cartCount > 0 && (
+                      <span className="absolute -top-1 -right-1 min-w-[16px] h-4 rounded-full bg-rust text-white text-[10px] font-semibold flex items-center justify-center px-1">
+                        {cartCount}
+                      </span>
+                    )}
+                  </Link>
+                )}
                 <div className="relative">
                   <button
                     onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -154,48 +167,60 @@ export default function Navbar() {
                     />
                   </button>
 
-                {dropdownOpen && (
-                  <div
-                    className="absolute right-0 mt-2 w-44 bg-paper border border-border rounded-2xl shadow-card overflow-hidden animate-fade-down"
-                    style={{ animationDuration: "0.25s" }}
-                  >
-                    <Link
-                      to="/profile"
-                      className="flex items-center gap-2.5 px-4 py-3 text-[13px] text-espresso hover:bg-linen transition-all duration-200 hover:pl-5"
+                  {dropdownOpen && (
+                    <div
+                      className="absolute right-0 mt-2 w-44 bg-paper border border-border rounded-2xl shadow-card overflow-hidden animate-fade-down"
+                      style={{ animationDuration: "0.25s" }}
                     >
-                      <User className="w-3.5 h-3.5 text-fog" />
-                      My Account
-                    </Link>
-                    <Link
-                      to="/orders"
-                      className="flex items-center gap-2.5 px-4 py-3 text-[13px] text-espresso hover:bg-linen transition-all duration-200 hover:pl-5"
-                    >
-                      <svg className="w-3.5 h-3.5 text-fog" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      My Orders
-                    </Link>
-                    {user?.role === "admin" && (
                       <Link
-                        to="/admin"
+                        to="/profile"
                         className="flex items-center gap-2.5 px-4 py-3 text-[13px] text-espresso hover:bg-linen transition-all duration-200 hover:pl-5"
                       >
-                        <Shield className="w-3.5 h-3.5 text-tan" />
-                        Admin Panel
+                        <User className="w-3.5 h-3.5 text-fog" />
+                        My Account
                       </Link>
-                    )}
-                    <div className="rule" />
-                    <button
-                      onClick={handleLogout}
-                      className="w-full flex items-center gap-2.5 px-4 py-3 text-[13px] text-rust hover:bg-linen transition-all duration-200 hover:pl-5"
-                    >
-                      <LogOut className="w-3.5 h-3.5" />
-                      Sign Out
-                    </button>
-                  </div>
-                )}
-              </div>
-            </>
+                      {user?.role !== "admin" && (
+                        <Link
+                          to="/orders"
+                          className="flex items-center gap-2.5 px-4 py-3 text-[13px] text-espresso hover:bg-linen transition-all duration-200 hover:pl-5"
+                        >
+                          <svg
+                            className="w-3.5 h-3.5 text-fog"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                            />
+                          </svg>
+                          My Orders
+                        </Link>
+                      )}
+                      {user?.role === "admin" && (
+                        <Link
+                          to="/admin"
+                          className="flex items-center gap-2.5 px-4 py-3 text-[13px] text-espresso hover:bg-linen transition-all duration-200 hover:pl-5"
+                        >
+                          <Shield className="w-3.5 h-3.5 text-tan" />
+                          Admin Panel
+                        </Link>
+                      )}
+                      <div className="rule" />
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2.5 px-4 py-3 text-[13px] text-rust hover:bg-linen transition-all duration-200 hover:pl-5"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        Sign Out
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </>
             ) : (
               <>
                 <Link
@@ -233,7 +258,10 @@ export default function Navbar() {
             className="md:hidden bg-paper border-t border-border py-4 animate-fade-down"
             style={{ animationDuration: "0.3s" }}
           >
-            {NAV_LINKS.filter(link => !(link.label === "Bulk Orders" && user?.role === "admin")).map((link, i) => (
+            {NAV_LINKS.filter(
+              (link) =>
+                !(link.label === "Bulk Orders" && user?.role === "admin"),
+            ).map((link, i) => (
               <Link
                 key={link.href}
                 to={link.href}
@@ -256,12 +284,14 @@ export default function Navbar() {
                   >
                     My Account
                   </Link>
-                  <Link
-                    to="/orders"
-                    className="block py-2.5 text-[13px] text-espresso font-medium hover:text-sienna transition-colors"
-                  >
-                    My Orders
-                  </Link>
+                  {user?.role !== "admin" && (
+                    <Link
+                      to="/orders"
+                      className="block py-2.5 text-[13px] text-espresso font-medium hover:text-sienna transition-colors"
+                    >
+                      My Orders
+                    </Link>
+                  )}
                   {user?.role === "admin" && (
                     <Link
                       to="/admin"
