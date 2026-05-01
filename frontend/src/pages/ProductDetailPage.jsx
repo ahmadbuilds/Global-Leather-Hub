@@ -337,10 +337,8 @@ export default function ProductDetailPage() {
                             </span>
                           )}
                       </span>
-                      <span className="text-right text-espresso font-medium">
-                        {formatCurrency(
-                          tier.price,
-                          user?.preferredCurrency)}
+                      <span className="text-right text-espresso font-medium tabular-nums break-all">
+                        {formatCurrency(tier.price, user?.preferredCurrency)}
                       </span>
                     </div>
                   ))}
@@ -354,7 +352,7 @@ export default function ProductDetailPage() {
               </h4>
               <div className="bg-linen/40 border border-border rounded-2xl p-5 shadow-sm">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
+                  <div className="min-w-0">
                     <label className="text-[10px] text-fog uppercase tracking-widest font-semibold mb-1 block">
                       Quantity
                     </label>
@@ -365,7 +363,7 @@ export default function ProductDetailPage() {
                       value={quantityInput}
                       onChange={handleQuantityChange}
                       onBlur={handleQuantityBlur}
-                      className={`field py-2.5 text-sm ${quantityError ? "field-error" : ""}`}
+                      className={`field py-2.5 text-sm  tabular-nums ${quantityError ? "field-error" : ""}`}
                     />
                     {quantityError && (
                       <p className="text-rust text-xs mt-1 flex items-center gap-1">
@@ -373,11 +371,11 @@ export default function ProductDetailPage() {
                       </p>
                     )}
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="text-[10px] text-fog uppercase tracking-widest font-semibold mb-1 block">
                       Unit Price
                     </label>
-                    <div className="text-espresso font-semibold text-lg">
+                    <div className="text-espresso font-semibold text-lg tabular-nums break-all leading-tight">
                       {formatCurrency(unitPrice, user?.preferredCurrency)}
                     </div>
                     {savingsPercent > 0 && (
@@ -386,15 +384,12 @@ export default function ProductDetailPage() {
                       </p>
                     )}
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="text-[10px] text-fog uppercase tracking-widest font-semibold mb-1 block">
                       Estimated Total
                     </label>
-                    <div className="text-espresso font-semibold text-lg">
-                      {formatCurrency(
-                        totalPrice,
-                        user?.preferredCurrency
-                      )}
+                    <div className="text-espresso font-semibold text-lg tabular-nums break-all leading-tight">
+                      {formatCurrency(totalPrice, user?.preferredCurrency)}
                     </div>
                   </div>
                 </div>
@@ -403,10 +398,12 @@ export default function ProductDetailPage() {
                     <p className="text-xs text-fog mt-4">
                       Add {nextTierDelta} more item
                       {nextTierDelta === 1 ? "" : "s"} to unlock{" "}
-                      {formatCurrency(
-                        nextTier.price,
-                        user?.preferredCurrency
-                      )}
+                      <span className="tabular-nums break-all">
+                        {formatCurrency(
+                          nextTier.price,
+                          user?.preferredCurrency,
+                        )}
+                      </span>
                       /unit pricing.
                     </p>
                   ) : (

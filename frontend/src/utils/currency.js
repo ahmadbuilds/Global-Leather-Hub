@@ -27,6 +27,15 @@ export const getCurrencySymbol = (currency) => {
 
 export const formatCurrency = (amount, currency = 'USD') => {
   const symbol = getCurrencySymbol(currency);
-  const finalAmount = amount || 0;
-  return `${symbol}${finalAmount.toFixed(2)}`;
+  const normalizedAmount =
+    typeof amount === 'string'
+      ? Number(amount.replace(/,/g, ''))
+      : Number(amount);
+  const finalAmount = Number.isFinite(normalizedAmount) ? normalizedAmount : 0;
+  const formattedAmount = new Intl.NumberFormat(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+    useGrouping: true,
+  }).format(finalAmount);
+  return `${symbol}${formattedAmount}`;
 };
