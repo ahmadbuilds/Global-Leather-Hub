@@ -3,23 +3,13 @@ const Order = require('../models/Order');
 const Product = require('../models/Product');
 const logger = require('./logger');
 const { getStripe } = require('./stripeClient');
+const { getPriceForQuantity } = require('./pricingTiers');
 
-const priceForQuantity = (product, quantity) => {
-  if (!product?.pricingTiers?.length) return 0;
-  const tier = product.pricingTiers.find(
-    (t) => quantity >= t.minQuantity && (t.maxQuantity == null || quantity <= t.maxQuantity)
-  );
-  return (tier || product.pricingTiers[0]).pricePerUnit;
-};
-
-/** Remove a product line from every user's cart. */
+//Remove a product line from every user's cart. 
 const removeProductFromAllCarts = async (productId) => {
   await Cart.updateMany({ 'items.product': productId }, { $pull: { items: { product: productId } } });
 };
 
-/**
- * After product edit: update cart line prices/names, drop lines below MOQ or inactive product.
- */
 const reconcileCartsForProduct = async (productId) => {
   const product = await Product.findById(productId).lean();
   if (!product) return;
@@ -42,13 +32,13 @@ const reconcileCartsForProduct = async (productId) => {
         changed = true;
         continue;
       }
-      const newPrice = priceForQuantity(product, item.quantity);
+      const newPrice = getPriceForQuantity(product, item.quantity);
       if (newPrice <= 0) {
         changed = true;
         continue;
       }
-      if (item.pricePerUnit !== newPrice) {
-        item.pricePerUnit = newPrice;
+      if (item.price_usd !== newPrice) {
+        item.price_usd = newPrice;
         changed = true;
       }
       if (item.productName !== product.name) {
@@ -64,7 +54,7 @@ const reconcileCartsForProduct = async (productId) => {
   }
 };
 
-/** Cancel unpaid Stripe checkouts that reference a product (admin deleted/edited product). */
+//Cancel unpaid Stripe checkouts that reference a product (admin deleted/edited product).
 const cancelUnpaidOrdersContainingProduct = async (productId) => {
   const stripe = getStripe();
   const orders = await Order.find({
