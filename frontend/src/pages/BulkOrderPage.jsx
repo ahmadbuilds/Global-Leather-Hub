@@ -299,14 +299,14 @@ export default function BulkOrderPage() {
                                 )
                               }
                               onBlur={() => handleQuantityBlur(product._id)}
-                              className="field text-sm"
+                              className="field text-sm text-right tabular-nums"
                             />
                           </div>
                           <div>
                             <label className="block text-xs text-fog uppercase tracking-wide mb-1">
                               Estimated Price
                             </label>
-                            <div className="text-sm font-medium py-2">
+                            <div className="text-sm font-medium py-2 tabular-nums break-all leading-tight">
                               {formatCurrency(
                                 calculateProductPrice(product) *
                                   product.quantity,
@@ -323,7 +323,7 @@ export default function BulkOrderPage() {
                               <span className="text-espresso font-medium">
                                 Active: {getTierLabel(activeTier)}
                               </span>
-                              <span>
+                              <span className="tabular-nums break-all">
                                 {formatCurrency(
                                   unitPrice,
                                   user?.preferredCurrency,
@@ -346,11 +346,13 @@ export default function BulkOrderPage() {
                               <p className="mt-1">
                                 Add {nextDelta} more item
                                 {nextDelta === 1 ? "" : "s"} to unlock{" "}
-                                {formatCurrency(
-                                  nextTier.price,
-                                  user?.preferredCurrency,
-                                  true,
-                                )}
+                                <span className="tabular-nums break-all">
+                                  {formatCurrency(
+                                    nextTier.price,
+                                    user?.preferredCurrency,
+                                    true,
+                                  )}
+                                </span>
                                 /unit.
                               </p>
                             ) : (
@@ -424,12 +426,12 @@ export default function BulkOrderPage() {
                     {selectedProducts.map((product) => (
                       <div
                         key={product._id}
-                        className="flex justify-between text-sm"
+                        className="flex justify-between gap-4 text-sm"
                       >
-                        <span className="text-fog">
+                        <span className="text-fog min-w-0 flex-1">
                           {product.name} × {product.quantity}
                         </span>
-                        <span>
+                        <span className="min-w-0 text-right tabular-nums break-all">
                           {formatCurrency(
                             calculateProductPrice(product) * product.quantity,
                             user?.preferredCurrency,
@@ -442,11 +444,11 @@ export default function BulkOrderPage() {
 
                   <div className="rule"></div>
 
-                  <div className="flex justify-between font-medium">
-                    <span>
+                  <div className="flex justify-between gap-4 font-medium">
+                    <span className="min-w-0 flex-1">
                       Estimated Total ({user?.preferredCurrency || "USD"})
                     </span>
-                    <span className="text-sienna">
+                    <span className="min-w-0 text-right text-sienna tabular-nums break-all">
                       {formatCurrency(
                         calculateTotal(),
                         user?.preferredCurrency,

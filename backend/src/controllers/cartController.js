@@ -7,34 +7,81 @@ const { calculateShippingCost, getShippingRestrictions } = require('../utils/shi
 const { convertCurrency } = require('../utils/currency');
 const { getPriceForQuantity } = require('../utils/pricingTiers');
 
+const CART_PRODUCT_FIELDS = 'name pricingTiers moq status images';
+
+const populateCartProducts = async (cart) => {
+  if (!cart) return cart;
+  await cart.populate('items.product', CART_PRODUCT_FIELDS);
+  return cart;
+};
+
 // Helper to format cart response
-const formatCartResponse = (cart, currency) => {
+const formatCartResponse = async (cart, currency) => {
   const currencyService = require('../services/CurrencyService');
   let totalAmount = 0;
-  const items = cart ? cart.items.map(item => {
-    const obj = item.toObject ? item.toObject() : item;
+  const itemsRaw = cart
+    ? cart.items.map((item) => (item.toObject ? item.toObject() : item))
+    : [];
+
+  const productMap = new Map();
+  const missingIds = new Set();
+
+  itemsRaw.forEach((obj) => {
+    const product = obj.product;
+    if (product && typeof product === 'object' && product._id) {
+      productMap.set(String(product._id), product);
+    } else if (product) {
+      missingIds.add(String(product));
+    }
+  });
+
+  if (missingIds.size > 0) {
+    const products = await Product.find({
+      _id: { $in: Array.from(missingIds) },
+    })
+      .select(CART_PRODUCT_FIELDS)
+      .lean();
+    products.forEach((product) => {
+      productMap.set(String(product._id), product);
+    });
+  }
+
+  const items = itemsRaw.map((obj) => {
+    const productRef =
+      obj.product && typeof obj.product === 'object' && obj.product._id
+        ? obj.product._id
+        : obj.product;
+    const productKey = productRef ? String(productRef) : null;
+    const product = productKey ? productMap.get(productKey) : null;
     const convertedPrice = currencyService.convert(obj.price_usd, currency);
     totalAmount += obj.quantity * convertedPrice;
     return {
       ...obj,
+      product: product || obj.product,
+      productId: product?._id || productRef,
+      productName: product?.name || obj.productName,
+      productImage: product?.images?.[0]?.url || obj.productImage,
       price: convertedPrice,
       currency,
     };
-  }) : [];
+  });
+
   return { items, totalAmount, currency };
 };
 
 // GET /api/cart
 const getCart = async (req, res, next) => {
   try {
-    const cart = await Cart.findOne({ user: req.user._id }).populate('items.product', 'name pricingTiers moq status');
+    const cart = await Cart.findOne({ user: req.user._id });
+    await populateCartProducts(cart);
     
     const userRow = await User.findById(req.user._id).select('preferredCurrency').lean();
     const currency = userRow?.preferredCurrency || 'USD';
 
+    const cartResponse = await formatCartResponse(cart, currency);
     res.status(200).json({
       success: true,
-      data: formatCartResponse(cart, currency),
+      data: cartResponse,
     });
   } catch (error) {
     next(error);
@@ -94,14 +141,16 @@ const addToCart = async (req, res, next) => {
     }
 
     await cart.save();
+    await populateCartProducts(cart);
 
     const userRow = await User.findById(req.user._id).select('preferredCurrency').lean();
     const currency = userRow?.preferredCurrency || 'USD';
 
+    const cartResponse = await formatCartResponse(cart, currency);
     res.status(200).json({
       success: true,
       message: 'Item added to cart',
-      data: formatCartResponse(cart, currency),
+      data: cartResponse,
     });
   } catch (error) {
     next(error);
@@ -147,14 +196,16 @@ const updateCartItem = async (req, res, next) => {
     }
 
     await cart.save();
+    await populateCartProducts(cart);
 
     const userRow = await User.findById(req.user._id).select('preferredCurrency').lean();
     const currency = userRow?.preferredCurrency || 'USD';
 
+    const cartResponse = await formatCartResponse(cart, currency);
     res.status(200).json({
       success: true,
       message: 'Cart updated',
-      data: formatCartResponse(cart, currency),
+      data: cartResponse,
     });
   } catch (error) {
     next(error);
@@ -380,14 +431,16 @@ const removeFromCart = async (req, res, next) => {
 
     cart.items = cart.items.filter((item) => item.product.toString() !== productId);
     await cart.save();
+    await populateCartProducts(cart);
 
     const userRow = await User.findById(req.user._id).select('preferredCurrency').lean();
     const currency = userRow?.preferredCurrency || 'USD';
 
+    const cartResponse = await formatCartResponse(cart, currency);
     res.status(200).json({
       success: true,
       message: 'Item removed from cart',
-      data: formatCartResponse(cart, currency),
+      data: cartResponse,
     });
   } catch (error) {
     next(error);
@@ -402,14 +455,16 @@ const clearCart = async (req, res, next) => {
       { items: [] },
       { new: true, upsert: true }
     );
+    await populateCartProducts(cart);
 
     const userRow = await User.findById(req.user._id).select('preferredCurrency').lean();
     const currency = userRow?.preferredCurrency || 'USD';
 
+    const cartResponse = await formatCartResponse(cart, currency);
     res.status(200).json({
       success: true,
       message: 'Cart cleared',
-      data: formatCartResponse(cart, currency),
+      data: cartResponse,
     });
   } catch (error) {
     next(error);
