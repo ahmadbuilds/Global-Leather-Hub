@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import api from "../utils/api";
 import { useAuth } from "../context/authContext";
 import { ShoppingCart, X, Minus, Plus } from "lucide-react";
-import { convertCurrency, formatCurrency } from "../utils/currency";
+import { formatCurrency } from "../utils/currency";
 import toast from "react-hot-toast";
 
 export default function CartPage() {
@@ -166,7 +166,7 @@ export default function CartPage() {
                       </div>
                       <div>
                         <h3 className="text-sm font-semibold text-espresso">{item.productName}</h3>
-                        <p className="text-xs text-fog mt-1">{formatCurrency(item.pricePerUnit, user?.preferredCurrency, true)} / unit</p>
+                        <p className="text-xs text-fog mt-1">{formatCurrency(item.price, user?.preferredCurrency)} / unit</p>
                       </div>
                     </div>
 
@@ -200,7 +200,7 @@ export default function CartPage() {
                     </div>
 
                     <div className="flex items-center gap-3 text-sm md:ml-8">
-                      <span className="font-semibold">{formatCurrency(item.quantity * item.pricePerUnit, user?.preferredCurrency, true)}</span>
+                      <span className="font-semibold">{formatCurrency(item.quantity * item.price, user?.preferredCurrency)}</span>
                       <button
                         onClick={() => removeItem(item.product?._id || item.product)}
                         className="text-rust hover:text-red-600"
@@ -222,7 +222,7 @@ export default function CartPage() {
               </button>
               <div className="text-right">
                 <p className="text-fog text-sm">Total Estimation (Before Shipping)</p>
-                <p className="text-2xl font-semibold text-espresso">{formatCurrency(cart.totalAmount, user?.preferredCurrency, true)}</p>
+                <p className="text-2xl font-semibold text-espresso">{formatCurrency(cart.totalAmount, user?.preferredCurrency)}</p>
               </div>
             </div>
 
