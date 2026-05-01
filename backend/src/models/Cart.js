@@ -18,9 +18,9 @@ const cartItemSchema = new mongoose.Schema(
       min: [1, 'Quantity must be at least 1'],
       default: 1,
     },
-    pricePerUnit: {
+    price_usd: {
       type: Number,
-      required: [true, 'Price per unit is required'],
+      required: [true, 'Price per unit in USD is required'],
       min: [0.01, 'Price per unit must be greater than 0'],
     },
   },
@@ -46,7 +46,7 @@ const cartSchema = new mongoose.Schema(
 );
 
 cartSchema.virtual('totalAmount').get(function () {
-  return this.items.reduce((sum, item) => sum + item.quantity * item.pricePerUnit, 0);
+  return this.items.reduce((sum, item) => sum + item.quantity * item.price_usd, 0);
 });
 
 const Cart = mongoose.model('Cart', cartSchema);
