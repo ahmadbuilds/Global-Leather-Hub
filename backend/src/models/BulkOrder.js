@@ -43,7 +43,7 @@ const bulkOrderSchema = new mongoose.Schema(
     },
     currency: {
       type: String,
-      enum: ['USD', 'EUR', 'GBP', 'AUD', 'CAD', 'CNY'],
+      enum: ['USD', 'EUR', 'GBP', 'AUD', 'CAD', 'CNY', 'PKR', 'AED'],
       default: 'USD',
     },
     status: {
