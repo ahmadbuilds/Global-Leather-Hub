@@ -16,9 +16,9 @@ const orderItemSchema = new mongoose.Schema(
       required: [true, 'Quantity is required'],
       min: [1, 'Quantity must be at least 1'],
     },
-    pricePerUnit: {
+    price_usd: {
       type: Number,
-      required: [true, 'Price per unit is required'],
+      required: [true, 'Price per unit in USD is required'],
       min: [0.01, 'Price must be greater than 0'],
     },
   },
@@ -103,7 +103,7 @@ const orderSchema = new mongoose.Schema(
     },
     currency: {
       type: String,
-      enum: ['USD', 'EUR', 'GBP', 'AUD', 'CAD', 'CNY'],
+      enum: ['USD', 'EUR', 'GBP', 'AUD', 'CAD', 'CNY', 'PKR', 'AED'],
       default: 'USD',
     },
     paymentStatus: {
