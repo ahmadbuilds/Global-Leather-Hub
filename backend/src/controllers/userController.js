@@ -293,6 +293,29 @@ const deleteShippingProfile = async (req, res, next) => {
   }
 };
 
+// Helper to format order currency dynamically
+const formatOrderCurrency = (order, preferredCurrency) => {
+  if (!order) return order;
+  const o = order.toObject ? order.toObject() : { ...order };
+  const currencyService = require('../services/CurrencyService');
+  
+  if (o.items && Array.isArray(o.items)) {
+    o.items = o.items.map(item => ({
+      ...item,
+      price: currencyService.convert(item.price_usd, preferredCurrency)
+    }));
+  }
+  
+  if (o.totalAmount !== undefined) {
+    o.totalAmount = currencyService.convert(o.totalAmount, preferredCurrency);
+  }
+  
+  o.originalCurrency = o.currency;
+  o.currency = preferredCurrency;
+  
+  return o;
+};
+
 // GET /api/users/me/orders
 const getUserOrders = async (req, res, next) => {
   try {
@@ -305,7 +328,7 @@ const getUserOrders = async (req, res, next) => {
       filter.status = req.query.status;
     }
 
-    const [orders, total] = await Promise.all([
+    const [ordersRaw, total] = await Promise.all([
       Order.find(filter)
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -314,6 +337,10 @@ const getUserOrders = async (req, res, next) => {
         .lean(),
       Order.countDocuments(filter),
     ]);
+
+    const userRow = await User.findById(req.user._id).select('preferredCurrency').lean();
+    const preferredCurrency = userRow?.preferredCurrency || 'USD';
+    const orders = ordersRaw.map(o => formatOrderCurrency(o, preferredCurrency));
 
     const totalPages = Math.ceil(total / limit);
 
@@ -338,14 +365,18 @@ const getUserOrders = async (req, res, next) => {
 const getUserOrderById = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const order = await Order.findOne({
+    const orderRaw = await Order.findOne({
       _id: id,
       user: req.user._id,
-    }).populate('items.product', 'name images description');
+    }).populate('items.product', 'name images description').lean();
 
-    if (!order) {
+    if (!orderRaw) {
       return res.status(404).json({ success: false, message: 'Order not found' });
     }
+
+    const userRow = await User.findById(req.user._id).select('preferredCurrency').lean();
+    const preferredCurrency = userRow?.preferredCurrency || 'USD';
+    const order = formatOrderCurrency(orderRaw, preferredCurrency);
 
     res.status(200).json({
       success: true,
