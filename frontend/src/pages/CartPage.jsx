@@ -11,7 +11,8 @@ export default function CartPage() {
   const [cart, setCart] = useState({ items: [], totalAmount: 0 });
   const [loading, setLoading] = useState(true);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
-  const [updateBusy, setUpdateBusy] = useState(false);
+  const [updateBusy, setUpdateBusy] = useState(null);
+  const [quantityDrafts, setQuantityDrafts] = useState({});
   const [shipping, setShipping] = useState({
     fullName: user?.username || "",
     address: "",
@@ -27,10 +28,10 @@ export default function CartPage() {
   const fetchCart = async () => {
     try {
       setLoading(true);
-      const { data } = await api.get('/cart');
+      const { data } = await api.get("/cart");
       setCart({ items: data.data.items, totalAmount: data.data.totalAmount });
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Could not fetch cart.');
+      toast.error(err.response?.data?.message || "Could not fetch cart.");
     } finally {
       setLoading(false);
     }
@@ -38,11 +39,13 @@ export default function CartPage() {
 
   const fetchProfile = async () => {
     try {
-      const { data } = await api.get('/users/me');
+      const { data } = await api.get("/users/me");
       const userData = data.data.user;
       setShippingProfiles(userData.shippingProfiles || []);
       if (userData.shippingProfiles && userData.shippingProfiles.length > 0) {
-        const defaultProfile = userData.shippingProfiles.find((p) => p.isDefault) || userData.shippingProfiles[0];
+        const defaultProfile =
+          userData.shippingProfiles.find((p) => p.isDefault) ||
+          userData.shippingProfiles[0];
         setSelectedProfileId(defaultProfile._id);
         setShipping({
           fullName: defaultProfile.fullName,
@@ -63,46 +66,75 @@ export default function CartPage() {
     fetchCart();
     fetchProfile();
     const params = new URLSearchParams(window.location.search);
-    if (params.get('checkout') === 'cancelled') {
+    if (params.get("checkout") === "cancelled") {
       toast(
-        'Payment cancelled. If you had started checkout, your cart was cleared—check My Orders for any unpaid order.',
-        { duration: 6000 }
+        "Payment cancelled. If you had started checkout, your cart was cleared—check My Orders for any unpaid order.",
+        { duration: 6000 },
       );
     }
   }, []);
 
+  useEffect(() => {
+    setQuantityDrafts((prev) => {
+      const next = {};
+      cart.items.forEach((item) => {
+        const productId = item.product?._id || item.product;
+        if (!productId) return;
+        const current = prev[productId];
+        next[productId] = current ?? String(item.quantity);
+      });
+      return next;
+    });
+  }, [cart.items]);
+
   const changeQuantity = async (productId, newQuantity) => {
     try {
-      setUpdateBusy(true);
-      await api.patch(`/cart/item/${productId}`, { quantity: newQuantity });
-      toast.success('Cart updated');
-      await fetchCart();
+      setUpdateBusy(productId);
+      const { data } = await api.patch(`/cart/item/${productId}`, {
+        quantity: newQuantity,
+      });
+      setCart({ items: data.data.items, totalAmount: data.data.totalAmount });
+      setQuantityDrafts((prev) => ({
+        ...prev,
+        [productId]: String(newQuantity),
+      }));
+      window.dispatchEvent(new Event("cartUpdated"));
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to update cart item');
+      const existingItem = cart.items.find(
+        (entry) => (entry.product?._id || entry.product) === productId,
+      );
+      if (existingItem) {
+        setQuantityDrafts((prev) => ({
+          ...prev,
+          [productId]: String(existingItem.quantity),
+        }));
+      }
+      toast.error(err.response?.data?.message || "Failed to update cart item");
     } finally {
-      setUpdateBusy(false);
+      setUpdateBusy(null);
     }
   };
 
   const clearCart = async () => {
     try {
-      await api.delete('/cart');
-      toast.success('Cart cleared');
-      window.dispatchEvent(new Event('cartUpdated'));
-      await fetchCart();
+      const { data } = await api.delete("/cart");
+      setCart({ items: data.data.items, totalAmount: data.data.totalAmount });
+      setQuantityDrafts({});
+      toast.success("Cart cleared");
+      window.dispatchEvent(new Event("cartUpdated"));
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to clear cart');
+      toast.error(err.response?.data?.message || "Failed to clear cart");
     }
   };
 
   const removeItem = async (productId) => {
     try {
-      await api.delete(`/cart/item/${productId}`);
-      toast.success('Item removed');
-      window.dispatchEvent(new Event('cartUpdated'));
-      await fetchCart();
+      const { data } = await api.delete(`/cart/item/${productId}`);
+      setCart({ items: data.data.items, totalAmount: data.data.totalAmount });
+      toast.success("Item removed");
+      window.dispatchEvent(new Event("cartUpdated"));
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to remove item');
+      toast.error(err.response?.data?.message || "Failed to remove item");
     }
   };
 
@@ -110,7 +142,7 @@ export default function CartPage() {
     e.preventDefault();
     try {
       setCheckoutBusy(true);
-      const { data } = await api.post('/cart/checkout-session', {
+      const { data } = await api.post("/cart/checkout-session", {
         shippingDetails: shipping,
         shippingProfileId: selectedProfileId || undefined,
         notes,
@@ -120,9 +152,9 @@ export default function CartPage() {
         window.location.href = url;
         return;
       }
-      toast.error('No payment URL returned.');
+      toast.error("No payment URL returned.");
     } catch (err) {
-      toast.error(err.response?.data?.message || 'Checkout failed');
+      toast.error(err.response?.data?.message || "Checkout failed");
     } finally {
       setCheckoutBusy(false);
     }
@@ -138,7 +170,7 @@ export default function CartPage() {
 
   return (
     <div className="min-h-screen bg-canvas text-espresso pt-24 pb-16">
-      <div className="max-w-6xl mx-auto px-6 lg:px-10"> 
+      <div className="max-w-6xl mx-auto px-6 lg:px-10">
         <div className="mb-6 flex items-center gap-3 text-lg font-semibold">
           <ShoppingCart className="w-5 h-5" />
           My Cart
@@ -147,52 +179,150 @@ export default function CartPage() {
         {cart.items.length === 0 ? (
           <div className="card-linen border border-border rounded-2xl p-10 text-center">
             <p className="text-fog mb-4">Your cart is empty.</p>
-            <Link to="/products" className="btn-primary px-6 py-2.5 text-sm">Continue Shopping</Link>
+            <Link to="/products" className="btn-primary px-6 py-2.5 text-sm">
+              Continue Shopping
+            </Link>
           </div>
         ) : (
           <>
             <div className="space-y-4">
               {cart.items.map((item) => {
-                const itemProduct = item.product || {};
+                const itemProduct =
+                  item.product && typeof item.product === "object"
+                    ? item.product
+                    : {};
+                const productId =
+                  item.productId || itemProduct._id || item.product;
+                const productLink = productId ? `/products/${productId}` : null;
+                const minQty = itemProduct.moq || 1;
+                const draftValue =
+                  quantityDrafts[productId] ?? String(item.quantity);
+                const displayName = itemProduct.name || item.productName;
+                const productImage =
+                  item.productImage || itemProduct.images?.[0]?.url;
                 return (
-                  <div key={item.product?._id || item.product} className="bg-paper border border-border rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div className="flex items-center gap-3 md:gap-4 flex-1">
-                      <div className="w-16 h-16 rounded-xl bg-linen/70 flex items-center justify-center overflow-hidden border border-border">
-                        {itemProduct.images?.length > 0 ? (
-                          <img src={itemProduct.images[0].url} alt={item.productName} className="w-full h-full object-cover" />
-                        ) : (
-                          <span className="text-fog text-xs">No image</span>
-                        )}
+                  <div
+                    key={productId}
+                    className="bg-paper border border-border rounded-2xl p-4 sm:p-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4"
+                  >
+                    {productLink ? (
+                      <Link
+                        to={productLink}
+                        className="flex items-center gap-3 md:gap-4 flex-1 min-w-0"
+                      >
+                        <div className="w-16 h-16 rounded-xl bg-linen/70 flex items-center justify-center overflow-hidden border border-border">
+                          {productImage ? (
+                            <img
+                              src={productImage}
+                              alt={displayName}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-fog text-xs">No image</span>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-semibold text-espresso break-words">
+                            {displayName}
+                          </h3>
+                          <p className="text-xs text-fog mt-1 tabular-nums">
+                            {formatCurrency(
+                              item.price,
+                              user?.preferredCurrency,
+                            )}{" "}
+                            / unit
+                          </p>
+                        </div>
+                      </Link>
+                    ) : (
+                      <div className="flex items-center gap-3 md:gap-4 flex-1 min-w-0">
+                        <div className="w-16 h-16 rounded-xl bg-linen/70 flex items-center justify-center overflow-hidden border border-border">
+                          {productImage ? (
+                            <img
+                              src={productImage}
+                              alt={displayName}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <span className="text-fog text-xs">No image</span>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-semibold text-espresso break-words">
+                            {displayName}
+                          </h3>
+                          <p className="text-xs text-fog mt-1 tabular-nums">
+                            {formatCurrency(
+                              item.price,
+                              user?.preferredCurrency,
+                            )}{" "}
+                            / unit
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="text-sm font-semibold text-espresso">{item.productName}</h3>
-                        <p className="text-xs text-fog mt-1">{formatCurrency(item.price, user?.preferredCurrency)} / unit</p>
-                      </div>
-                    </div>
+                    )}
 
-                    <div className="flex items-center gap-2"> 
+                    <div className="flex items-center gap-2 flex-wrap">
                       <button
-                        disabled={updateBusy || item.quantity <= (itemProduct.moq || 1)}
-                        onClick={() => changeQuantity(item.product?._id || item.product, Math.max(item.quantity - 1, itemProduct.moq || 1))}
+                        disabled={
+                          updateBusy === productId || item.quantity <= minQty
+                        }
+                        onClick={() => {
+                          const nextQty = Math.max(item.quantity - 1, minQty);
+                          setQuantityDrafts((prev) => ({
+                            ...prev,
+                            [productId]: String(nextQty),
+                          }));
+                          changeQuantity(productId, nextQty);
+                        }}
                         className="w-8 h-8 border border-border rounded-full flex items-center justify-center text-fog hover:border-espresso"
                       >
                         <Minus className="w-4 h-4" />
                       </button>
                       <input
                         type="number"
-                        min={itemProduct.moq || 1}
-                        value={item.quantity}
+                        min={minQty}
+                        value={draftValue}
                         onChange={(e) => {
-                          const value = Number(e.target.value);
-                          if (!Number.isNaN(value) && value >= (itemProduct.moq || 1)) {
-                            changeQuantity(item.product?._id || item.product, value);
+                          setQuantityDrafts((prev) => ({
+                            ...prev,
+                            [productId]: e.target.value,
+                          }));
+                        }}
+                        onBlur={() => {
+                          const value = Number(quantityDrafts[productId]);
+                          if (!Number.isFinite(value)) {
+                            setQuantityDrafts((prev) => ({
+                              ...prev,
+                              [productId]: String(item.quantity),
+                            }));
+                            return;
+                          }
+                          const normalizedValue = Math.max(
+                            minQty,
+                            Math.floor(value),
+                          );
+                          if (normalizedValue !== item.quantity) {
+                            changeQuantity(productId, normalizedValue);
+                          } else {
+                            setQuantityDrafts((prev) => ({
+                              ...prev,
+                              [productId]: String(item.quantity),
+                            }));
                           }
                         }}
-                        className="w-16 border border-border rounded-lg text-center py-1"
+                        className="w-20 border border-border rounded-lg text-center py-1 tabular-nums"
                       />
                       <button
-                        disabled={updateBusy}
-                        onClick={() => changeQuantity(item.product?._id || item.product, item.quantity + 1)}
+                        disabled={updateBusy === productId}
+                        onClick={() => {
+                          const nextQty = item.quantity + 1;
+                          setQuantityDrafts((prev) => ({
+                            ...prev,
+                            [productId]: String(nextQty),
+                          }));
+                          changeQuantity(productId, nextQty);
+                        }}
                         className="w-8 h-8 border border-border rounded-full flex items-center justify-center text-fog hover:border-espresso"
                       >
                         <Plus className="w-4 h-4" />
@@ -200,9 +330,14 @@ export default function CartPage() {
                     </div>
 
                     <div className="flex items-center gap-3 text-sm md:ml-8">
-                      <span className="font-semibold">{formatCurrency(item.quantity * item.price, user?.preferredCurrency)}</span>
+                      <span className="font-semibold tabular-nums break-all">
+                        {formatCurrency(
+                          item.quantity * item.price,
+                          user?.preferredCurrency,
+                        )}
+                      </span>
                       <button
-                        onClick={() => removeItem(item.product?._id || item.product)}
+                        onClick={() => removeItem(productId)}
                         className="text-rust hover:text-red-600"
                       >
                         <X className="w-4 h-4" />
@@ -221,21 +356,32 @@ export default function CartPage() {
                 Clear Cart
               </button>
               <div className="text-right">
-                <p className="text-fog text-sm">Total Estimation (Before Shipping)</p>
-                <p className="text-2xl font-semibold text-espresso">{formatCurrency(cart.totalAmount, user?.preferredCurrency)}</p>
+                <p className="text-fog text-sm">
+                  Total Estimation (Before Shipping)
+                </p>
+                <p className="text-2xl font-semibold text-espresso tabular-nums break-all">
+                  {formatCurrency(cart.totalAmount, user?.preferredCurrency)}
+                </p>
               </div>
             </div>
 
-            <form onSubmit={handleCheckout} className="mt-8 bg-paper border border-border p-5 rounded-2xl space-y-4">
+            <form
+              onSubmit={handleCheckout}
+              className="mt-8 bg-paper border border-border p-5 rounded-2xl space-y-4"
+            >
               <h3 className="text-lg font-semibold">Shipping Information</h3>
 
               {shippingProfiles.length > 0 && (
                 <div>
-                  <label className="text-xs text-fog uppercase tracking-wide">Saved Shipping Profile</label>
+                  <label className="text-xs text-fog uppercase tracking-wide">
+                    Saved Shipping Profile
+                  </label>
                   <select
                     value={selectedProfileId}
                     onChange={(e) => {
-                      const selected = shippingProfiles.find((p) => p._id === e.target.value);
+                      const selected = shippingProfiles.find(
+                        (p) => p._id === e.target.value,
+                      );
                       if (selected) {
                         setSelectedProfileId(selected._id);
                         setShipping({
@@ -252,7 +398,9 @@ export default function CartPage() {
                     className="field"
                   >
                     {shippingProfiles.map((profile) => (
-                      <option key={profile._id} value={profile._id}>{profile.name || profile.fullName}</option>
+                      <option key={profile._id} value={profile._id}>
+                        {profile.name || profile.fullName}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -262,7 +410,12 @@ export default function CartPage() {
                 <input
                   type="text"
                   value={shipping.fullName}
-                  onChange={(e) => setShipping((prev) => ({ ...prev, fullName: e.target.value }))}
+                  onChange={(e) =>
+                    setShipping((prev) => ({
+                      ...prev,
+                      fullName: e.target.value,
+                    }))
+                  }
                   placeholder="Full name"
                   required
                   className="field"
@@ -270,7 +423,9 @@ export default function CartPage() {
                 <input
                   type="text"
                   value={shipping.phone}
-                  onChange={(e) => setShipping((prev) => ({ ...prev, phone: e.target.value }))}
+                  onChange={(e) =>
+                    setShipping((prev) => ({ ...prev, phone: e.target.value }))
+                  }
                   placeholder="Phone"
                   required
                   className="field"
@@ -278,7 +433,12 @@ export default function CartPage() {
                 <input
                   type="text"
                   value={shipping.address}
-                  onChange={(e) => setShipping((prev) => ({ ...prev, address: e.target.value }))}
+                  onChange={(e) =>
+                    setShipping((prev) => ({
+                      ...prev,
+                      address: e.target.value,
+                    }))
+                  }
                   placeholder="Address"
                   required
                   className="field md:col-span-2"
@@ -286,7 +446,9 @@ export default function CartPage() {
                 <input
                   type="text"
                   value={shipping.city}
-                  onChange={(e) => setShipping((prev) => ({ ...prev, city: e.target.value }))}
+                  onChange={(e) =>
+                    setShipping((prev) => ({ ...prev, city: e.target.value }))
+                  }
                   placeholder="City"
                   required
                   className="field"
@@ -294,7 +456,12 @@ export default function CartPage() {
                 <input
                   type="text"
                   value={shipping.country}
-                  onChange={(e) => setShipping((prev) => ({ ...prev, country: e.target.value }))}
+                  onChange={(e) =>
+                    setShipping((prev) => ({
+                      ...prev,
+                      country: e.target.value,
+                    }))
+                  }
                   placeholder="Country"
                   required
                   className="field"
@@ -302,7 +469,12 @@ export default function CartPage() {
                 <input
                   type="text"
                   value={shipping.postalCode}
-                  onChange={(e) => setShipping((prev) => ({ ...prev, postalCode: e.target.value }))}
+                  onChange={(e) =>
+                    setShipping((prev) => ({
+                      ...prev,
+                      postalCode: e.target.value,
+                    }))
+                  }
                   placeholder="Postal Code"
                   className="field"
                 />
@@ -320,7 +492,9 @@ export default function CartPage() {
                 disabled={checkoutBusy}
                 className="btn-primary w-full py-3"
               >
-                {checkoutBusy ? 'Redirecting to secure payment…' : `Proceed to Secure Payment`}
+                {checkoutBusy
+                  ? "Redirecting to secure payment…"
+                  : `Proceed to Secure Payment`}
               </button>
             </form>
           </>
