@@ -11,9 +11,9 @@ const pricingTierSchema = new mongoose.Schema(
       type: Number,
       default: null,
     },
-    pricePerUnit: {
+    price_usd: {
       type: Number,
-      required: [true, 'Price per unit is required'],
+      required: [true, 'Price per unit in USD is required'],
       min: [0.01, 'Price must be greater than 0'],
     },
   },
