@@ -43,6 +43,7 @@ export default function ProductsPage() {
   const [showMobileFilters, setShowMobileFilters] = useState(false);
   const [cartBusy, setCartBusy] = useState(false);
   const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
 
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [category, setCategory] = useState(searchParams.get("category") || "");
@@ -112,6 +113,11 @@ export default function ProductsPage() {
   const addToCart = async (productId, minQty = 1) => {
     if (!user) {
       toast.error("Please log in to add items to your cart.");
+      return;
+    }
+
+    if (user?.role === "admin") {
+      toast.error("Admins cannot add items to the cart.");
       return;
     }
 
@@ -427,9 +433,8 @@ export default function ProductsPage() {
                             <span className="text-sm">from</span>
                             <span className="text-lg">
                               {formatCurrency(
-                                item.pricingTiers?.[0]?.pricePerUnit || 0,
+                                item.pricingTiers?.[0]?.price || 0,
                                 user?.preferredCurrency,
-                                true,
                               )}
                             </span>
                             <span className="text-xs text-fog font-normal">
@@ -440,16 +445,18 @@ export default function ProductsPage() {
                       </div>
 
                       <div className="grid  gap-2">
-                        <button
-                          onClick={async () =>
-                            addToCart(item._id, item.moq || 1)
-                          }
-                          disabled={cartBusy}
-                          className="btn-primary w-full justify-center text-[12px] py-2.5"
-                        >
-                          <ShoppingCart className="w-4 h-4 mr-2" />
-                          Add to Cart
-                        </button>
+                        {!isAdmin && (
+                          <button
+                            onClick={async () =>
+                              addToCart(item._id, item.moq || 1)
+                            }
+                            disabled={cartBusy}
+                            className="btn-primary w-full justify-center text-[12px] py-2.5"
+                          >
+                            <ShoppingCart className="w-4 h-4 mr-2" />
+                            Add to Cart
+                          </button>
+                        )}
                         <Link
                           to={`/products/${item._id}`}
                           className="btn-outline w-full justify-center text-[12px] py-2.5 transition-colors hover:bg-espresso hover:text-paper hover:border-espresso"
