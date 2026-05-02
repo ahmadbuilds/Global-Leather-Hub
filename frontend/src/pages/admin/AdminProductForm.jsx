@@ -32,7 +32,12 @@ const normalizePricingTiers = (tiers = []) =>
     .map((t) => ({
       minQuantity: t.minQuantity != null ? String(t.minQuantity) : "",
       maxQuantity: t.maxQuantity != null ? String(t.maxQuantity) : "",
-      price: t.price != null ? String(t.price) : "",
+      price:
+        t.price_usd != null
+          ? String(t.price_usd)
+          : t.price != null
+            ? String(t.price)
+            : "",
     }))
     .sort((a, b) => Number(a.minQuantity || 0) - Number(b.minQuantity || 0));
 
@@ -967,8 +972,7 @@ export default function AdminProductForm() {
                     ? Math.max(
                         0,
                         Math.round(
-                          ((previewBasePrice - tier.price) /
-                            previewBasePrice) *
+                          ((previewBasePrice - tier.price) / previewBasePrice) *
                             100,
                         ),
                       )
