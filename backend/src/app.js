@@ -13,6 +13,7 @@ const contactRoutes = require('./routes/contactRoutes');
 const cartRoutes = require('./routes/cartRoutes');
 const bulkOrderRoutes = require('./routes/bulkOrderRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
+const shippingRoutes = require('./routes/shippingRoutes');
 const paymentController = require('./controllers/paymentController');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 const logger = require('./utils/logger');
@@ -81,6 +82,7 @@ app.use('/api/cart', cartRoutes);
 app.use('/api/bulk-orders', bulkOrderRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/contact', contactRoutes);
+app.use('/api/shipping', shippingRoutes);
 
 app.use(notFound);
 app.use(errorHandler);
