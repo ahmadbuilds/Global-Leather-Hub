@@ -1,6 +1,6 @@
 import React, { useEffect } from "react";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import { Toaster } from "react-hot-toast";
+import { Toaster, useToasterStore } from "react-hot-toast";
 import { AuthProvider } from "./context/authContext";
 import Navbar from "./components/Navbar";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -23,12 +23,17 @@ import AdminProductForm from "./pages/admin/AdminProductForm";
 import AdminOrders from "./pages/admin/AdminOrders";
 import AdminCustomers from "./pages/admin/AdminCustomers";
 import CartPage from "./pages/CartPage";
+import InternationalOrderPage from "./pages/InternationalOrderPage";
 import CheckoutSuccessPage from "./pages/CheckoutSuccessPage";
 import AdminBulkOrders from "./pages/admin/AdminBulkOrders";
 import Lenis from "lenis";
 
 const AppLayout = ({ children }) => {
   const location = useLocation();
+  const { toasts } = useToasterStore(undefined, "modal");
+  const hasVisibleToasts = toasts.some(
+    (toast) => toast.visible && toast.type === "custom",
+  );
 
   useEffect(() => {
     if (window.lenis) {
@@ -38,12 +43,37 @@ const AppLayout = ({ children }) => {
     }
   }, [location.pathname, location.search]);
 
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    if (hasVisibleToasts) {
+      document.body.style.overflow = "hidden";
+    }
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [hasVisibleToasts]);
+
   const hideNavbar = ["/login", "/register"].includes(location.pathname);
   const isAdmin = location.pathname.startsWith("/admin");
   return (
     <>
-      {!hideNavbar && <Navbar />}
-      {children}
+      {hasVisibleToasts && (
+        <div
+          aria-hidden="true"
+          className="fixed inset-0 z-[50000] bg-canvas/10 backdrop-blur-sm"
+        />
+      )}
+      <div
+        aria-hidden={hasVisibleToasts}
+        inert={hasVisibleToasts ? "" : undefined}
+        className={
+          hasVisibleToasts ? "pointer-events-none select-none blur-sm" : ""
+        }
+      >
+        {!hideNavbar && <Navbar />}
+        {children}
+      </div>
     </>
   );
 };
@@ -80,7 +110,13 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <Toaster
-          position="top-right"
+          toasterId="modal"
+          position="top-center"
+          containerStyle={{
+            top: "50%",
+            transform: "translateY(-50%)",
+            zIndex: 999999,
+          }}
           toastOptions={{
             duration: 4000,
             style: {
@@ -97,6 +133,36 @@ export default function App() {
               iconTheme: { primary: "#5E7A5A", secondary: "#FDFAF5" },
             },
             error: {
+              iconTheme: { primary: "#C0542A", secondary: "#FDFAF5" },
+            },
+          }}
+        />
+        <Toaster
+          toasterId="international-feedback"
+          position="top-right"
+          containerStyle={{
+            top: "1rem",
+            right: "1rem",
+            zIndex: 999999,
+          }}
+          toastOptions={{
+            duration: 1000,
+            style: {
+              background: "#FDFAF5",
+              color: "#2C1A0E",
+              border: "1px solid #D9CEBE",
+              borderRadius: "16px",
+              fontSize: "13px",
+              fontFamily: '"Inter", system-ui, sans-serif',
+              fontWeight: 400,
+              boxShadow: "0 4px 24px rgba(44,26,14,0.10)",
+            },
+            success: {
+              duration: 1000,
+              iconTheme: { primary: "#5E7A5A", secondary: "#FDFAF5" },
+            },
+            error: {
+              duration: 1000,
               iconTheme: { primary: "#C0542A", secondary: "#FDFAF5" },
             },
           }}
@@ -123,6 +189,14 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <CartPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/checkout/international-order"
+              element={
+                <ProtectedRoute>
+                  <InternationalOrderPage />
                 </ProtectedRoute>
               }
             />
@@ -207,4 +281,3 @@ export default function App() {
     </BrowserRouter>
   );
 }
-
