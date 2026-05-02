@@ -532,3 +532,65 @@ nav {
   overflow: hidden;
   white-space: nowrap;
 }
+
+/* Leaflet Map Overrides */
+.leaflet-container {
+  border-radius: 0.75rem;
+  z-index: 10;
+  font-family: 'Inter', system-ui, sans-serif;
+}
+.leaflet-control-container .leaflet-control {
+  box-shadow: 0 2px 8px rgba(44,26,14,0.15);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.leaflet-bar a, .leaflet-bar a:hover {
+  background-color: var(--paper);
+  color: var(--espresso);
+}
+
+/* Custom Dropdown (Country Select) */
+.country-dropdown-menu {
+  scrollbar-width: thin;
+  scrollbar-color: var(--tan) transparent;
+}
+.country-dropdown-menu::-webkit-scrollbar {
+  width: 6px;
+}
+.country-dropdown-menu::-webkit-scrollbar-track {
+  background: transparent;
+}
+.country-dropdown-menu::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 8px;
+}
+.country-dropdown-menu::-webkit-scrollbar-thumb:hover {
+  background: var(--tan);
+}
+
+/* Step Indicator */
+.step-line {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  height: 2px;
+  background-color: var(--border);
+  z-index: 0;
+}
+.step-line-active {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  height: 2px;
+  background-color: var(--tan);
+  z-index: 1;
+  transition: width 0.4s ease;
+}
+
+/* Modal Overlay */
+.modal-overlay {
+  background-color: rgba(44, 26, 14, 0.4);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
