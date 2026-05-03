@@ -2,9 +2,18 @@ const nodemailer = require('nodemailer');
 const logger = require('./logger');
 const User = require('../models/User');
 
+const getFromEmail = () => process.env.FROM_EMAIL || process.env.SMTP_USER;
+const getFromName = () => process.env.FROM_NAME || 'Global Leather Hub';
+
 const createTransporter = () => {
+  const smtpPort = Number(process.env.SMTP_PORT) || 587;
+
   return nodemailer.createTransport({
-    service: 'gmail',
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: smtpPort,
+    secure: smtpPort === 465,
+    requireTLS: smtpPort !== 465,
+    family: 4,
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
@@ -89,7 +98,7 @@ const sendOTPEmail = async (to, otp, purpose = 'verification') => {
 
   try {
     const info = await transporter.sendMail({
-      from: `"${process.env.FROM_NAME}" <${process.env.FROM_EMAIL}>`,
+      from: `"${getFromName()}" <${getFromEmail()}>`,
       to,
       subject,
       html,
@@ -134,7 +143,7 @@ const sendContactEmail = async (formData) => {
 
   try {
     const info = await transporter.sendMail({
-      from: `"Global Leather Hub" <${process.env.FROM_EMAIL}>`,
+      from: `"${getFromName()}" <${getFromEmail()}>`,
       to: 'crisitiano678@gmail.com',
       replyTo: email,
       subject: `Direct Inquiry: ${inquiryType} - ${name}`,
@@ -357,7 +366,7 @@ const sendOrderStatusEmail = async (userOrUserId, subjectShort, order) => {
 
   try {
     const info = await transporter.sendMail({
-      from: `"${process.env.FROM_NAME}" <${process.env.FROM_EMAIL}>`,
+      from: `"${getFromName()}" <${getFromEmail()}>`,
       to: toEmail,
       subject,
       html,
