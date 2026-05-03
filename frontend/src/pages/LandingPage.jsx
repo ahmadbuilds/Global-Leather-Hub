@@ -203,16 +203,16 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-10 pb-20 md:pb-36 w-full">
+        <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-10 pb-24 pt-8 md:pb-36 md:pt-0 w-full">
           <div className="max-w-2xl">
-            <p className="eyebrow mb-5 animate-fade-up">
+            <p className="eyebrow mb-3 md:mb-5 animate-fade-up">
               Wholesale · Since 2009
             </p>
             <h1
-              className="text-espresso leading-[1.05] mb-6 animate-fade-up stagger-1"
+              className="text-espresso leading-[1.1] md:leading-[1.05] mb-4 md:mb-6 animate-fade-up stagger-1"
               style={{
                 fontFamily: '"Playfair Display", serif',
-                fontSize: "clamp(3rem, 7vw, 6rem)",
+                fontSize: "clamp(2.5rem, 7vw, 6rem)",
                 fontWeight: 400,
               }}
             >
@@ -222,12 +222,12 @@ export default function LandingPage() {
                 Direct from Source.
               </em>
             </h1>
-            <p className="text-fog text-lg font-light leading-relaxed mb-10 max-w-lg animate-fade-up stagger-2">
+            <p className="text-fog text-base md:text-lg font-light leading-relaxed mb-6 md:mb-10 max-w-lg animate-fade-up stagger-2">
               Authentic jackets, belts, and wallets sourced straight from our
               Lahore factory. Trusted by 5,000+ international retailers and
               wholesalers.
             </p>
-            <div className="flex flex-wrap gap-3 mb-12 animate-fade-up stagger-3">
+            <div className="flex flex-wrap gap-3 mb-8 md:mb-12 animate-fade-up stagger-3">
               {isAuthenticated ? (
                 <Link to="/profile" className="btn-primary">
                   My Account <ArrowRight className="w-4 h-4" />
@@ -243,7 +243,7 @@ export default function LandingPage() {
                 </>
               )}
             </div>
-            <div className="flex flex-wrap gap-5 animate-fade-up stagger-4">
+            <div className="flex flex-wrap gap-4 md:gap-5 animate-fade-up stagger-4">
               {[
                 { icon: CheckCircle, text: "No hidden fees" },
                 { icon: Shield, text: "Genuine leather certified" },
@@ -251,10 +251,10 @@ export default function LandingPage() {
               ].map(({ icon: Icon, text }) => (
                 <div
                   key={text}
-                  className="flex items-center gap-2 text-fog text-[13px]"
+                  className="flex items-center gap-2 text-fog text-xs md:text-[13px]"
                 >
-                  <Icon className="w-4 h-4 text-tan" />
-                  {text}
+                  <Icon className="w-4 h-4 text-tan flex-shrink-0" />
+                  <span className="whitespace-nowrap">{text}</span>
                 </div>
               ))}
             </div>
