@@ -1,12 +1,20 @@
 const Order = require('../models/Order');
 const logger = require('../utils/logger');
 const { getStripe } = require('../utils/stripeClient');
+const { stripeUnitToAmount } = require('../utils/stripeClient');
+const currencyService = require('../services/CurrencyService');
+const Cart = require('../models/Cart');
+const { sendOTPEmail, sendContactEmail } = require('../utils/email');
+const { sendOrderStatusEmail } = require('../utils/email');
 
 const markOrderPaidIfNeeded = async (orderId, session) => {
-  const order = await Order.findById(orderId);
-  if (!order || order.paymentStatus === 'paid') {
+  const order = await Order.findById(orderId).populate('user', 'email username');
+  if (!order) return null;
+
+  if (order.paymentStatus === 'paid' || order.order_status === 'SHIPPING' || order.order_status === 'DELIVERED') {
     return order;
   }
+
   if (order.status === 'cancelled') {
     logger.warn(`Stripe payment received for cancelled order ${order.orderNumber}`);
     return order;
@@ -15,18 +23,48 @@ const markOrderPaidIfNeeded = async (orderId, session) => {
   const pi = session.payment_intent;
   const piId = typeof pi === 'string' ? pi : pi?.id;
 
+  const paidAmount = stripeUnitToAmount(session.amount_total, session.currency);
+  const currencyUsed = (session.currency || order.currency || 'USD').toUpperCase();
+  const rate = currencyService.rates[currencyUsed] || 1;
+
   order.paymentStatus = 'paid';
-  order.status = 'confirmed';
   order.paidAt = new Date();
-  if (piId) order.stripePaymentIntentId = piId;
+  if (piId) {
+    order.payment_intent_id = piId;
+    order.stripePaymentIntentId = piId;
+  }
+  order.paid_amount = paidAmount;
+  order.currency_used = currencyUsed;
+  order.exchange_rate_used = rate;
+
+  const prevStatus = order.order_status || order.status || 'unknown';
+  order.order_status = 'CONFIRMED';
+  order.status = 'confirmed';
+
+  order.statusHistory = order.statusHistory || [];
+  order.statusHistory.push({ from: prevStatus, to: 'CONFIRMED', by: null, at: new Date() });
+
   await order.save();
   logger.info(`Order ${order.orderNumber} marked paid (Stripe session ${session.id})`);
+
+  try {
+    await Cart.findOneAndUpdate({ user: order.user._id || order.user }, { items: [] });
+  } catch (e) {
+    logger.warn(`Failed to clear cart for user ${order.user}: ${e.message}`);
+  }
+
+  // send confirmation email
+  try {
+    logger.info(`Attempting to send order confirmation email to ${order.user?.email || order.user}`);
+    await sendOrderStatusEmail(order.user, 'confirmed', order);
+    logger.info(`Order confirmation email sent successfully`);
+  } catch (e) {
+    logger.error(`Failed to send order confirmation email: ${e.message}`);
+  }
+
   return order;
 };
 
-/**
- * Stripe webhook — must use raw body (configured in app.js).
- */
 const stripeWebhook = async (req, res) => {
   const stripe = getStripe();
   const sig = req.headers['stripe-signature'];
@@ -60,9 +98,7 @@ const stripeWebhook = async (req, res) => {
   res.json({ received: true });
 };
 
-/**
- * After redirect from Stripe — confirms payment if webhook is delayed.
- */
+
 const verifyCheckoutSession = async (req, res, next) => {
   try {
     const stripe = getStripe();
@@ -91,10 +127,37 @@ const verifyCheckoutSession = async (req, res, next) => {
     }
 
     const fresh = await Order.findById(orderId).populate('items.product', 'name images description');
+
+    const orderForClient = fresh.toObject ? fresh.toObject() : { ...fresh };
+    
+    if (fresh.paid_amount !== undefined && fresh.paid_amount !== null) {
+      orderForClient.totalAmount = Number(fresh.paid_amount) || 0;
+      orderForClient.currency = fresh.currency_used || fresh.currency || session.currency || 'USD';
+    } else if (fresh.base_amount_usd !== undefined) {
+      const base = Number(fresh.base_amount_usd) || 0;
+      const shipUsd = Number(fresh.shipping?.amount_usd) || 0;
+      orderForClient.totalAmount = base + shipUsd;
+      orderForClient.currency = fresh.currency_used || fresh.currency || session.currency || 'USD';
+    } else {
+      orderForClient.totalAmount = Number(fresh.totalAmount || 0);
+      orderForClient.currency = fresh.currency_used || fresh.currency || session.currency || 'USD';
+    }
+
+    // Convert item prices for client display
+    if (Array.isArray(orderForClient.items)) {
+      orderForClient.items = orderForClient.items.map((it) => {
+        const priceUsd = Number(it.price_usd) || 0;
+        return {
+          ...it,
+          price: priceUsd,
+        };
+      });
+    }
+
     res.status(200).json({
       success: true,
       data: {
-        order: fresh,
+        order: orderForClient,
         paymentStatus: session.payment_status,
       },
     });
@@ -106,5 +169,4 @@ const verifyCheckoutSession = async (req, res, next) => {
 module.exports = {
   stripeWebhook,
   verifyCheckoutSession,
-  markOrderPaidIfNeeded,
 };
