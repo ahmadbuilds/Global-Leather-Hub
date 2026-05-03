@@ -4,27 +4,7 @@ A comprehensive wholesale e-commerce platform for leather products featuring a m
 
 ---
 
-## 📋 Table of Contents
-
-- [Project Overview](#project-overview)
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Project Structure](#project-structure)
-- [Installation & Setup](#installation--setup)
-  - [Prerequisites](#prerequisites)
-  - [Backend Setup](#backend-setup)
-  - [Frontend Setup](#frontend-setup)
-- [Environment Variables](#environment-variables)
-  - [Backend .env](#backend-env)
-  - [Frontend .env](#frontend-env)
-- [Running the Application](#running-the-application)
-- [Available Scripts](#available-scripts)
-- [API Documentation](#api-documentation)
-- [Project Structure Details](#project-structure-details)
-
----
-
-## 🎯 Project Overview
+## Project Overview
 
 Global Leather Hub is a full-stack e-commerce platform designed for wholesale leather product distribution. It supports:
 
@@ -38,7 +18,7 @@ Global Leather Hub is a full-stack e-commerce platform designed for wholesale le
 
 ---
 
-## ✨ Features
+## Features
 
 ### Frontend Features
 
@@ -68,7 +48,7 @@ Global Leather Hub is a full-stack e-commerce platform designed for wholesale le
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 ### Frontend
 
@@ -99,7 +79,7 @@ Global Leather Hub is a full-stack e-commerce platform designed for wholesale le
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ### Backend Structure
 
@@ -214,7 +194,7 @@ frontend/
 
 ---
 
-## 🚀 Installation & Setup
+## Installation & Setup
 
 ### Prerequisites
 
@@ -271,7 +251,7 @@ Ensure you have the following installed on your system:
 
 ---
 
-## 🔐 Environment Variables
+## Environment Variables
 
 ### Backend .env
 
@@ -357,7 +337,7 @@ VITE_ENV=development
 
 ---
 
-## ▶️ Running the Application
+## Running the Application
 
 ### Start Backend Server
 
@@ -413,7 +393,7 @@ concurrently "cd backend && npm run dev" "cd frontend && npm run dev"
 
 ---
 
-## 📜 Available Scripts
+## Available Scripts
 
 ### Backend Scripts
 
@@ -434,7 +414,7 @@ concurrently "cd backend && npm run dev" "cd frontend && npm run dev"
 
 ---
 
-## 📚 API Documentation
+## API Documentation
 
 For comprehensive API endpoint documentation, see [backend/API_DOCUMENTATION.md](backend/API_DOCUMENTATION.md)
 
@@ -455,7 +435,7 @@ For comprehensive API endpoint documentation, see [backend/API_DOCUMENTATION.md]
 
 ---
 
-## 📂 Project Structure Details
+## Project Structure Details
 
 ### Key Directories Explained
 
@@ -480,7 +460,7 @@ For comprehensive API endpoint documentation, see [backend/API_DOCUMENTATION.md]
 
 ---
 
-## 🔒 Security Considerations
+## Security Considerations
 
 - **JWT Tokens**: Stored securely and validated on protected routes
 - **Password Security**: Hashed using bcryptjs
@@ -493,7 +473,7 @@ For comprehensive API endpoint documentation, see [backend/API_DOCUMENTATION.md]
 
 ---
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Backend Issues
 
