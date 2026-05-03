@@ -56,8 +56,10 @@ const markOrderPaidIfNeeded = async (orderId, session) => {
   // send confirmation email
   try {
     logger.info(`Attempting to send order confirmation email to ${order.user?.email || order.user}`);
-    await sendOrderStatusEmail(order.user, 'confirmed', order);
-    logger.info(`Order confirmation email sent successfully`);
+    void sendOrderStatusEmail(order.user, 'confirmed', order).catch((e) => {
+      logger.error(`Failed to send order confirmation email: ${e.message}`);
+    });
+    logger.info(`Order confirmation email queued`);
   } catch (e) {
     logger.error(`Failed to send order confirmation email: ${e.message}`);
   }

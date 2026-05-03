@@ -4,11 +4,14 @@ const User = require('../models/User');
 
 const createTransporter = () => {
   return nodemailer.createTransport({
-    service:'gmail',
+    service: 'gmail',
     auth: {
       user: process.env.SMTP_USER,
       pass: process.env.SMTP_PASS,
     },
+    connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT_MS) || 10000,
+    greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT_MS) || 10000,
+    socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT_MS) || 10000,
   });
 };
 

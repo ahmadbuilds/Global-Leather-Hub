@@ -543,7 +543,9 @@ const updateOrderStatus = async (req, res, next) => {
     // Send email notification to user
     try {
       const { sendOrderStatusEmail } = require('../utils/email');
-      await sendOrderStatusEmail(order.user, nextStatus, order);
+      void sendOrderStatusEmail(order.user, nextStatus, order).catch((e) => {
+        logger.warn(`Failed to send status change email: ${e.message}`);
+      });
     } catch (e) {
       logger.warn(`Failed to send status change email: ${e.message}`);
     }
