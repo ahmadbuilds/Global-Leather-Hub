@@ -1,24 +1,29 @@
-import React, { createContext, useContext, useEffect, useReducer } from 'react';
-import api from '../utils/api';
+import React, { createContext, useContext, useEffect, useReducer } from "react";
+import api from "../utils/api";
 
 const AuthContext = createContext(null);
 
 const initialState = {
   user: null,
-  accessToken: localStorage.getItem('accessToken'),
+  accessToken: localStorage.getItem("accessToken"),
   isAuthenticated: false,
   loading: true,
 };
 
 const authReducer = (state, action) => {
   switch (action.type) {
-    case 'SET_USER':
-      return { ...state, user: action.payload, isAuthenticated: true, loading: false };
-    case 'SET_LOADING':
+    case "SET_USER":
+      return {
+        ...state,
+        user: action.payload,
+        isAuthenticated: true,
+        loading: false,
+      };
+    case "SET_LOADING":
       return { ...state, loading: action.payload };
-    case 'LOGIN':
-      localStorage.setItem('accessToken', action.payload.accessToken);
-      localStorage.setItem('refreshToken', action.payload.refreshToken);
+    case "LOGIN":
+      localStorage.setItem("accessToken", action.payload.accessToken);
+      localStorage.setItem("refreshToken", action.payload.refreshToken);
       return {
         ...state,
         user: action.payload.user,
@@ -26,11 +31,11 @@ const authReducer = (state, action) => {
         isAuthenticated: true,
         loading: false,
       };
-    case 'UPDATE_USER':
+    case "UPDATE_USER":
       return { ...state, user: { ...state.user, ...action.payload } };
-    case 'LOGOUT':
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
+    case "LOGOUT":
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
       return { ...initialState, loading: false, accessToken: null };
     default:
       return state;
@@ -43,27 +48,32 @@ export const AuthProvider = ({ children }) => {
   // Fetch user profile on mount if token exists
   useEffect(() => {
     const fetchUser = async () => {
-      const token = localStorage.getItem('accessToken');
+      const token = localStorage.getItem("accessToken");
       if (!token) {
-        dispatch({ type: 'SET_LOADING', payload: false });
+        dispatch({ type: "SET_LOADING", payload: false });
         return;
       }
       try {
-        const { data } = await api.get('/users/me');
-        dispatch({ type: 'SET_USER', payload: data.data.user });
+        const { data } = await api.get("/users/me");
+        dispatch({ type: "SET_USER", payload: data.data.user });
       } catch {
-        dispatch({ type: 'LOGOUT' });
+        dispatch({ type: "LOGOUT" });
+      } finally {
+        dispatch({ type: "SET_LOADING", payload: false });
       }
     };
     fetchUser();
   }, []);
 
-  const login = (payload) => dispatch({ type: 'LOGIN', payload });
+  const login = (payload) => dispatch({ type: "LOGIN", payload });
   const logout = async () => {
-    try { await api.post('/auth/logout'); } catch {}
-    dispatch({ type: 'LOGOUT' });
+    try {
+      await api.post("/auth/logout");
+    } catch {}
+    dispatch({ type: "LOGOUT" });
   };
-  const updateUser = (updates) => dispatch({ type: 'UPDATE_USER', payload: updates });
+  const updateUser = (updates) =>
+    dispatch({ type: "UPDATE_USER", payload: updates });
 
   return (
     <AuthContext.Provider value={{ ...state, login, logout, updateUser }}>
@@ -74,6 +84,6 @@ export const AuthProvider = ({ children }) => {
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
-  if (!context) throw new Error('useAuth must be used within AuthProvider');
+  if (!context) throw new Error("useAuth must be used within AuthProvider");
   return context;
 };
