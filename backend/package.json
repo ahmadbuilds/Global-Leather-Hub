@@ -23,6 +23,7 @@
     "morgan": "^1.10.0",
     "multer": "^2.1.1",
     "nodemailer": "^6.9.14",
+    "resend": "^6.12.2",
     "streamifier": "^0.1.1",
     "stripe": "^22.0.0",
     "winston": "^3.13.0",

@@ -1,31 +1,13 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 const logger = require('./logger');
 const User = require('../models/User');
 
-const getFromEmail = () => process.env.FROM_EMAIL || process.env.SMTP_USER;
+const resend = new Resend(process.env.RESEND_API_KEY);
+
+const getFromEmail = () => process.env.FROM_EMAIL || 'noreply@globalleatherhub.com';
 const getFromName = () => process.env.FROM_NAME || 'Global Leather Hub';
 
-const createTransporter = () => {
-  const smtpPort = Number(process.env.SMTP_PORT) || 587;
-
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: smtpPort,
-    secure: smtpPort === 465,
-    requireTLS: smtpPort !== 465,
-    family: 4,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-    connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT_MS) || 10000,
-    greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT_MS) || 10000,
-    socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT_MS) || 10000,
-  });
-};
-
 const sendOTPEmail = async (to, otp, purpose = 'verification') => {
-  const transporter = createTransporter();
 
   const subject =
     purpose === 'verification'
@@ -97,14 +79,18 @@ const sendOTPEmail = async (to, otp, purpose = 'verification') => {
   `;
 
   try {
-    const info = await transporter.sendMail({
-      from: `"${getFromName()}" <${getFromEmail()}>`,
-      to,
+    const { data, error } = await resend.emails.send({
+      from: `${getFromName()} <${getFromEmail()}>`,
+      to: [to],
       subject,
       html,
     });
-    logger.info(`OTP email sent to ${to}: ${info.messageId}`);
-    return { success: true, messageId: info.messageId };
+    if (error) {
+      logger.error(`Failed to send OTP email to ${to}: ${error.message}`);
+      throw new Error('Failed to send verification email');
+    }
+    logger.info(`OTP email sent to ${to}: ${data?.id}`);
+    return { success: true, messageId: data?.id };
   } catch (error) {
     logger.error(`Failed to send OTP email to ${to}: ${error.message}`);
     throw new Error('Failed to send verification email');
@@ -112,7 +98,6 @@ const sendOTPEmail = async (to, otp, purpose = 'verification') => {
 };
 
 const sendContactEmail = async (formData) => {
-  const transporter = createTransporter();
   const { name, email, company, country, inquiryType, message } = formData;
 
   const html = `
@@ -142,15 +127,19 @@ const sendContactEmail = async (formData) => {
   `;
 
   try {
-    const info = await transporter.sendMail({
-      from: `"${getFromName()}" <${getFromEmail()}>`,
-      to: 'crisitiano678@gmail.com',
+    const { data, error } = await resend.emails.send({
+      from: `${getFromName()} <${getFromEmail()}>`,
+      to: ['crisitiano678@gmail.com'],
       replyTo: email,
       subject: `Direct Inquiry: ${inquiryType} - ${name}`,
       html,
     });
-    logger.info(`Contact email sent directly to crisitiano678@gmail.com: ${info.messageId}`);
-    return { success: true, messageId: info.messageId };
+    if (error) {
+      logger.error(`Failed to send contact email: ${error.message}`);
+      throw new Error('Failed to deliver the contact email directly.');
+    }
+    logger.info(`Contact email sent directly to crisitiano678@gmail.com: ${data?.id}`);
+    return { success: true, messageId: data?.id };
   } catch (error) {
     logger.error(`Failed to send contact email: ${error.message}`);
     throw new Error('Failed to deliver the contact email directly.');
@@ -159,7 +148,6 @@ const sendContactEmail = async (formData) => {
 
 
 const sendOrderStatusEmail = async (userOrUserId, subjectShort, order) => {
-  const transporter = createTransporter();
 
   // resolve user email
   let toEmail = null;
@@ -365,14 +353,18 @@ const sendOrderStatusEmail = async (userOrUserId, subjectShort, order) => {
   `;
 
   try {
-    const info = await transporter.sendMail({
-      from: `"${getFromName()}" <${getFromEmail()}>`,
-      to: toEmail,
+    const { data, error } = await resend.emails.send({
+      from: `${getFromName()} <${getFromEmail()}>`,
+      to: [toEmail],
       subject,
       html,
     });
-    logger.info(`Order email (${subjectShort}) sent to ${toEmail}: ${info.messageId}`);
-    return { success: true, messageId: info.messageId };
+    if (error) {
+      logger.error(`Failed to send order email to ${toEmail}: ${error.message}`);
+      throw new Error('Failed to send order notification');
+    }
+    logger.info(`Order email (${subjectShort}) sent to ${toEmail}: ${data?.id}`);
+    return { success: true, messageId: data?.id };
   } catch (error) {
     logger.error(`Failed to send order email to ${toEmail}: ${error.message}`);
     throw new Error('Failed to send order notification');
