@@ -39,13 +39,7 @@ export const getNextPricingTier = (tiers, quantity) => {
   return tiers.find((tier) => qty < tier.minQuantity) || null;
 };
 
-export const getPriceForQuantity = (product, quantity) => {
-  const tiers = normalizePricingTiers(product?.pricingTiers || []);
-  if (!tiers.length) return 0;
 
-  const activeTier = getActivePricingTier(tiers, quantity);
-  return activeTier?.price ?? tiers[0].price;
-};
 
 export const getTierLabel = (tier) => {
   if (!tier) return "";
