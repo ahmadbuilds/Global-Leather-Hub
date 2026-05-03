@@ -3,7 +3,6 @@ const Product = require('../models/Product');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const { getStripe, amountToStripeUnit } = require('../utils/stripeClient');
-const { convertCurrency } = require('../utils/currency');
 const { getPriceForQuantity } = require('../utils/pricingTiers');
 const { validateShippingAddress } = require('../utils/shippingValidation');
 
@@ -212,7 +211,7 @@ const updateCartItem = async (req, res, next) => {
   }
 };
 
-// POST /api/cart/checkout-session — Stripe Checkout (wholesale + international currency)
+// POST /api/cart/checkout-session
 const createStripeCheckoutSession = async (req, res, next) => {
   try {
     const stripe = getStripe();
@@ -300,17 +299,27 @@ const createStripeCheckoutSession = async (req, res, next) => {
     const order = new Order({
       user: req.user._id,
       items: orderItems,
-      totalAmount: totalAmountUsd, 
+      totalAmount: totalAmountUsd,
+      base_amount_usd: totalAmountUsd,
       notes,
       shippingAddress,
       currency,
+      currency_used: currency,
+      exchange_rate_used: currencyService.rates[currency] || 1,
       paymentStatus: 'unpaid',
+      paid_amount: 0,
+      paymentMethod: 'stripe',
+      order_status: 'CREATED',
       paymentMethod: 'stripe',
     });
 
     await order.save();
 
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+
+    const shippingUsd = Math.max(5, Math.round(totalAmountUsd * 0.05 * 100) / 100);
+    const shippingConverted = currencyService.convert(shippingUsd, currency);
+
     const lineItems = orderItems.map((item, index) => {
       const convertedPrice = currencyService.convert(item.price_usd, currency);
       return {
@@ -325,10 +334,43 @@ const createStripeCheckoutSession = async (req, res, next) => {
       };
     });
 
+    const shippingOption = {
+      shipping_rate_data: {
+        type: 'fixed_amount',
+        fixed_amount: {
+          amount: amountToStripeUnit(shippingConverted, currency),
+          currency: currency.toLowerCase(),
+        },
+        display_name: 'Shipping',
+        delivery_estimate: {
+          minimum: { unit: 'business_day', value: 3 },
+          maximum: { unit: 'business_day', value: 7 },
+        },
+      },
+    };
+
+    // Ensure Stripe Customer exists for this user to lock email in Checkout
+    let customerId = null;
     try {
-      const session = await stripe.checkout.sessions.create({
+      const existing = await stripe.customers.list({ email: req.user.email, limit: 1 });
+      if (existing && existing.data && existing.data.length > 0) {
+        customerId = existing.data[0].id;
+      } else {
+        const created = await stripe.customers.create({
+          email: req.user.email,
+          metadata: { userId: req.user._id.toString() },
+        });
+        customerId = created.id;
+      }
+    } catch (err) {
+      customerId = null;
+    }
+
+    try {
+      const sessionPayload = {
         mode: 'payment',
         line_items: lineItems,
+        shipping_options: [shippingOption],
         success_url: `${clientUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${clientUrl}/cart?checkout=cancelled`,
         client_reference_id: order._id.toString(),
@@ -339,13 +381,25 @@ const createStripeCheckoutSession = async (req, res, next) => {
         payment_intent_data: {
           metadata: { orderId: order._id.toString(), userId: req.user._id.toString() },
         },
-      });
+      };
+
+      if (customerId) {
+        sessionPayload.customer = customerId; 
+      } else {
+        sessionPayload.customer_email = req.user.email; 
+      }
+
+      const session = await stripe.checkout.sessions.create(sessionPayload);
 
       order.stripeCheckoutSessionId = session.id;
+      // store shipping details in order for accounting
+      order.shipping = order.shipping || {};
+      order.shipping.amount_usd = shippingUsd;
+      order.shipping.currency = currency;
+      order.shipping.amount_converted = shippingConverted;
+      // update total to include shipping
+      order.totalAmount = (order.base_amount_usd || 0) + shippingUsd;
       await order.save();
-
-      cart.items = [];
-      await cart.save();
 
       res.status(200).json({
         success: true,
