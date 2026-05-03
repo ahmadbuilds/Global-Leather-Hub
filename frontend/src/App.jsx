@@ -14,7 +14,6 @@ import AboutPage from "./pages/AboutPage";
 import ContactPage from "./pages/ContactPage";
 import ProductsPage from "./pages/ProductsPage";
 import ProductDetailPage from "./pages/ProductDetailPage";
-import BulkOrderPage from "./pages/BulkOrderPage";
 import OrdersPage from "./pages/OrdersPage";
 import OrderDetailPage from "./pages/OrderDetailPage";
 import AdminDashboard from "./pages/admin/AdminDashboard";
@@ -25,7 +24,7 @@ import AdminCustomers from "./pages/admin/AdminCustomers";
 import CartPage from "./pages/CartPage";
 import InternationalOrderPage from "./pages/InternationalOrderPage";
 import CheckoutSuccessPage from "./pages/CheckoutSuccessPage";
-import AdminBulkOrders from "./pages/admin/AdminBulkOrders";
+// Bulk orders page removed
 import Lenis from "lenis";
 
 const AppLayout = ({ children }) => {
@@ -208,14 +207,7 @@ export default function App() {
                 </ProtectedRoute>
               }
             />
-            <Route
-              path="/bulk-orders"
-              element={
-                <ProtectedRoute>
-                  <BulkOrderPage />
-                </ProtectedRoute>
-              }
-            />
+            {/* Bulk orders route removed */}
             <Route
               path="/orders"
               element={
@@ -246,7 +238,6 @@ export default function App() {
               <Route path="products/new" element={<AdminProductForm />} />
               <Route path="products/:id/edit" element={<AdminProductForm />} />
               <Route path="orders" element={<AdminOrders />} />
-              <Route path="bulk-orders" element={<AdminBulkOrders />} />
               <Route path="customers" element={<AdminCustomers />} />
             </Route>
             <Route
