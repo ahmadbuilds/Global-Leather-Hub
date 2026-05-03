@@ -16,7 +16,6 @@ import {
 
 const STATUS_OPTIONS = [
   { value: "", label: "All Statuses" },
-  { value: "pending", label: "Pending" },
   { value: "confirmed", label: "Confirmed" },
   { value: "processing", label: "Processing" },
   { value: "shipped", label: "Shipped" },
@@ -25,7 +24,6 @@ const STATUS_OPTIONS = [
 ];
 
 const STATUS_COLORS = {
-  pending: "bg-yellow-50 text-yellow-700 border-yellow-200",
   confirmed: "bg-blue-50 text-blue-700 border-blue-200",
   processing: "bg-purple-50 text-purple-700 border-purple-200",
   shipped: "bg-cyan-50 text-cyan-700 border-cyan-200",
@@ -34,10 +32,9 @@ const STATUS_COLORS = {
 };
 
 const VALID_TRANSITIONS = {
-  pending: ["confirmed", "cancelled"],
   confirmed: ["processing", "cancelled"],
   processing: ["shipped", "cancelled"],
-  shipped: ["delivered"],
+  shipped: ["delivered", "cancelled"],
   delivered: [],
   cancelled: [],
 };
@@ -50,12 +47,9 @@ export default function AdminOrders() {
   const [error, setError] = useState(null);
   const [expandedOrder, setExpandedOrder] = useState(null);
   const [updatingStatus, setUpdatingStatus] = useState(null);
-  const [trackingForm, setTrackingForm] = useState({ carrier: "", number: "", url: "" });
-  const [savingTracking, setSavingTracking] = useState(null);
-
   const [search, setSearch] = useState(searchParams.get("search") || "");
   const [statusFilter, setStatusFilter] = useState(
-    searchParams.get("status") || ""
+    searchParams.get("status") || "",
   );
 
   const fetchOrders = useCallback(async () => {
@@ -96,33 +90,16 @@ export default function AdminOrders() {
     });
   };
 
-  const handleSaveTracking = async (orderId) => {
-    try {
-      setSavingTracking(orderId);
-      await api.patch(`/admin/orders/${orderId}/tracking`, {
-        carrier: trackingForm.carrier || undefined,
-        number: trackingForm.number.trim(),
-        url: trackingForm.url.trim() || undefined,
-      });
-      toast.success("Tracking saved.");
-      setTrackingForm({ carrier: "", number: "", url: "" });
-      fetchOrders();
-    } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to save tracking.");
-    } finally {
-      setSavingTracking(null);
-    }
-  };
-
   const handleStatusUpdate = async (orderId, newStatus) => {
     try {
       setUpdatingStatus(orderId);
-      await api.patch(`/admin/orders/${orderId}/status`, {
+      const response = await api.patch(`/admin/orders/${orderId}/status`, {
         status: newStatus,
       });
       toast.success(`Order status updated to "${newStatus}".`);
       fetchOrders();
     } catch (err) {
+      console.error('Status update error:', err.response?.data);
       toast.error(err.response?.data?.message || "Failed to update status.");
     } finally {
       setUpdatingStatus(null);
@@ -234,27 +211,22 @@ export default function AdminOrders() {
         <div className="space-y-3">
           {orders.map((order) => {
             const isExpanded = expandedOrder === order._id;
-            const transitions = (VALID_TRANSITIONS[order.status] || []).filter((s) => {
-              if (order.paymentStatus === "unpaid" && s !== "cancelled") return false;
-              return true;
-            });
+            const normalizedStatus = String(
+              order.status || "confirmed",
+            ).toLowerCase();
+            const transitions = VALID_TRANSITIONS[normalizedStatus] || [];
+            const displayStatus =
+              normalizedStatus.charAt(0).toUpperCase() +
+              normalizedStatus.slice(1);
+            const displayTotal = Number(order.totalAmount || 0);
+            const shipping = order.shipping || {};
 
             return (
-              <div
-                key={order._id}
-                className="card p-0 overflow-hidden"
-              >
+              <div key={order._id} className="card p-0 overflow-hidden">
                 {/* Order Header Row */}
                 <button
                   onClick={() => {
                     setExpandedOrder(isExpanded ? null : order._id);
-                    if (!isExpanded) {
-                      setTrackingForm({
-                        carrier: order.tracking?.carrier || "",
-                        number: order.tracking?.number || "",
-                        url: order.tracking?.url || "",
-                      });
-                    }
                   }}
                   className="w-full flex items-center justify-between p-4 hover:bg-linen/20 transition-colors text-left"
                 >
@@ -270,7 +242,7 @@ export default function AdminOrders() {
                   </div>
                   <div className="flex items-center gap-4 flex-wrap justify-end">
                     <span className="text-sm font-medium text-espresso hidden sm:block">
-                      ${order.totalAmount?.toFixed(2)}
+                      ${displayTotal.toFixed(2)}
                     </span>
                     {order.paymentStatus === "unpaid" && (
                       <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-amber-300 text-amber-800 bg-amber-50">
@@ -282,7 +254,7 @@ export default function AdminOrders() {
                         STATUS_COLORS[order.status] || ""
                       }`}
                     >
-                      {order.status}
+                      {displayStatus}
                     </span>
                     {isExpanded ? (
                       <ChevronUp className="w-4 h-4 text-fog" />
@@ -320,18 +292,31 @@ export default function AdminOrders() {
                           Shipping
                         </p>
                         <p className="text-sm text-espresso">
-                          {order.shippingDetails?.fullName || "—"}
+                          {order.shippingAddress?.fullName ||
+                            order.shippingAddressSnapshot?.fullName ||
+                            "—"}
                         </p>
                         <p className="text-xs text-fog">
-                          {order.shippingDetails?.address},{" "}
-                          {order.shippingDetails?.city}
+                          {order.shippingAddress?.address ||
+                            order.shippingAddressSnapshot?.address ||
+                            "—"}
+                          ,{" "}
+                          {order.shippingAddress?.city ||
+                            order.shippingAddressSnapshot?.city ||
+                            "—"}
                         </p>
                         <p className="text-xs text-fog">
-                          {order.shippingDetails?.country}{" "}
-                          {order.shippingDetails?.postalCode}
+                          {order.shippingAddress?.country ||
+                            order.shippingAddressSnapshot?.country ||
+                            "—"}{" "}
+                          {order.shippingAddress?.postalCode ||
+                            order.shippingAddressSnapshot?.postalCode ||
+                            ""}
                         </p>
                         <p className="text-xs text-fog">
-                          {order.shippingDetails?.phone}
+                          {order.shippingAddress?.phone ||
+                            order.shippingAddressSnapshot?.phone ||
+                            ""}
                         </p>
                       </div>
                     </div>
@@ -353,19 +338,24 @@ export default function AdminOrders() {
                               </p>
                               <p className="text-xs text-fog">
                                 Qty: {item.quantity} × $
-                                {item.price?.toFixed(2)}
+                                {Number(
+                                  item.price ?? item.price_usd ?? 0,
+                                ).toFixed(2)}
                               </p>
                             </div>
                             <p className="text-espresso font-medium">
                               $
-                              {(item.quantity * item.price).toFixed(2)}
+                              {(
+                                Number(item.quantity || 0) *
+                                Number(item.price ?? item.price_usd ?? 0)
+                              ).toFixed(2)}
                             </p>
                           </div>
                         ))}
                       </div>
                       <div className="flex justify-end mt-3">
                         <p className="text-sm font-medium text-espresso">
-                          Total: ${order.totalAmount?.toFixed(2)}
+                          Total: ${displayTotal.toFixed(2)}
                         </p>
                       </div>
                     </div>
@@ -379,65 +369,6 @@ export default function AdminOrders() {
                       </div>
                     )}
 
-                    <div className="border-t border-border/40 pt-3">
-                      <p className="text-xs font-medium text-fog tracking-wide uppercase mb-2">
-                        Shipment tracking
-                      </p>
-                      <p className="text-[11px] text-fog mb-2">
-                        Best practice: add carrier and tracking number when you ship. Customers see this in their order detail page.
-                      </p>
-                      {order.tracking?.number && (
-                        <p className="text-sm text-espresso mb-2">
-                          Current: {order.tracking.carrier && `${order.tracking.carrier} · `}
-                          {order.tracking.number}
-                          {order.tracking.url && (
-                            <a
-                              href={order.tracking.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="ml-2 text-tan underline"
-                            >
-                              Track
-                            </a>
-                          )}
-                        </p>
-                      )}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                        <input
-                          placeholder="Carrier (e.g. DHL)"
-                          value={trackingForm.carrier}
-                          onChange={(e) =>
-                            setTrackingForm((f) => ({ ...f, carrier: e.target.value }))
-                          }
-                          className="field text-xs py-2"
-                        />
-                        <input
-                          placeholder="Tracking number"
-                          value={trackingForm.number}
-                          onChange={(e) =>
-                            setTrackingForm((f) => ({ ...f, number: e.target.value }))
-                          }
-                          className="field text-xs py-2"
-                        />
-                        <input
-                          placeholder="Tracking URL (https://...)"
-                          value={trackingForm.url}
-                          onChange={(e) =>
-                            setTrackingForm((f) => ({ ...f, url: e.target.value }))
-                          }
-                          className="field text-xs py-2 sm:col-span-1"
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        disabled={savingTracking === order._id || !trackingForm.number?.trim()}
-                        onClick={() => handleSaveTracking(order._id)}
-                        className="btn-outline text-xs py-2 px-4 mt-2"
-                      >
-                        {savingTracking === order._id ? "Saving…" : "Save tracking"}
-                      </button>
-                    </div>
-
                     {/* Status Update */}
                     {transitions.length > 0 && (
                       <div className="flex items-center gap-3 pt-2 border-t border-border/40">
@@ -446,20 +377,20 @@ export default function AdminOrders() {
                           {transitions.map((s) => (
                             <button
                               key={s}
-                              onClick={() =>
-                                handleStatusUpdate(order._id, s)
-                              }
+                              onClick={() => handleStatusUpdate(order._id, s)}
                               disabled={updatingStatus === order._id}
                               className={`text-[12px] font-medium px-3 py-1.5 rounded-full border transition-all duration-200 capitalize ${
                                 s === "cancelled"
-                                  ? "border-rust/30 text-rust hover:bg-rust/10"
+                                  ? "border-rose-300 text-rose-700 hover:bg-rose-50"
+                                  : s === "delivered"
+                                  ? "border-emerald-300 text-emerald-700 hover:bg-emerald-50"
                                   : "border-tan/40 text-sienna hover:bg-tan/10"
                               } disabled:opacity-40`}
                             >
                               {updatingStatus === order._id ? (
                                 <Loader2 className="w-3 h-3 animate-spin inline" />
                               ) : (
-                                s
+                                s.charAt(0).toUpperCase() + s.slice(1)
                               )}
                             </button>
                           ))}
