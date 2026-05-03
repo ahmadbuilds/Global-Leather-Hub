@@ -56,6 +56,17 @@ export default function AdminCustomers() {
     fetchCustomers();
   }, [fetchCustomers]);
 
+  useEffect(() => {
+    if (selectedCustomer) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [selectedCustomer]);
+
   const handleSearch = (e) => {
     e.preventDefault();
     setSearchParams((prev) => {
@@ -284,92 +295,103 @@ export default function AdminCustomers() {
 
       {/* Customer Order History Modal */}
       {selectedCustomer && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 animate-fade-in">
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setSelectedCustomer(null)}></div>
-          <div className="relative z-10 w-full max-w-3xl max-h-[90vh] flex flex-col bg-canvas border border-border shadow-2xl rounded-3xl overflow-hidden animate-scale-in">
+        <div 
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 animate-fade-in"
+          onClick={() => setSelectedCustomer(null)}
+        >
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm"></div>
+          <div 
+            className="relative z-10 w-full max-w-3xl h-[90vh] flex flex-col bg-canvas border border-border shadow-2xl rounded-2xl md:rounded-3xl overflow-hidden animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal Header */}
-            <div className="flex items-start justify-between p-6 border-b border-border bg-paper shrink-0">
-              <div className="flex items-center gap-4">
+            <div className="flex items-start justify-between p-4 md:p-6 border-b border-border bg-paper flex-shrink-0">
+              <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
                 {selectedCustomer.avatar ? (
-                  <img src={selectedCustomer.avatar} alt={selectedCustomer.username} className="w-12 h-12 rounded-full object-cover border border-border" />
+                  <img src={selectedCustomer.avatar} alt={selectedCustomer.username} className="w-10 h-10 md:w-12 md:h-12 rounded-full object-cover border border-border flex-shrink-0" />
                 ) : (
-                  <div className="w-12 h-12 rounded-full bg-tan/20 border border-tan/40 flex items-center justify-center flex-shrink-0">
-                    <span className="text-sienna text-lg font-semibold">{selectedCustomer.username?.[0]?.toUpperCase() || "?"}</span>
+                  <div className="w-10 h-10 md:w-12 md:h-12 rounded-full bg-tan/20 border border-tan/40 flex items-center justify-center flex-shrink-0">
+                    <span className="text-sienna text-base md:text-lg font-semibold">{selectedCustomer.username?.[0]?.toUpperCase() || "?"}</span>
                   </div>
                 )}
-                <div>
-                  <h3 className="text-espresso text-xl" style={{ fontFamily: '"Playfair Display", serif', fontWeight: 500 }}>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-espresso text-lg md:text-xl truncate" style={{ fontFamily: '"Playfair Display", serif', fontWeight: 500 }}>
                     {selectedCustomer.username}&apos;s Order History
                   </h3>
-                  <p className="text-fog text-sm mt-0.5">{selectedCustomer.email}</p>
+                  <p className="text-fog text-xs md:text-sm mt-0.5 truncate">{selectedCustomer.email}</p>
                 </div>
               </div>
               <button
                 onClick={() => setSelectedCustomer(null)}
-                className="p-2 -mr-2 -mt-2 rounded-full hover:bg-linen/50 text-fog hover:text-espresso transition-colors"
+                className="p-2 -mr-2 -mt-2 rounded-full hover:bg-linen/50 text-fog hover:text-espresso transition-colors flex-shrink-0 ml-2"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Modal Body */}
-            <div className="p-6 overflow-y-auto flex-1 bg-paper/50">
-              {loadingOrders ? (
-                <div className="flex flex-col items-center justify-center py-20 opacity-70">
-                  <Loader2 className="w-8 h-8 text-tan animate-spin-slow mb-4" />
-                  <p className="text-fog text-sm animate-pulse">Fetching orders...</p>
-                </div>
-              ) : ordersError ? (
-                <div className="card-linen flex flex-col items-center justify-center py-12 text-center border-rust/20">
-                  <AlertCircle className="w-8 h-8 text-rust mb-3" />
-                  <p className="text-espresso font-medium">{ordersError}</p>
-                </div>
-              ) : customerOrders.length === 0 ? (
-                <div className="text-center py-16">
-                  <ShoppingCart className="w-16 h-16 text-fog/20 mx-auto mb-4" />
-                  <p className="text-fog text-sm">No orders found for this customer.</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {customerOrders.map(order => (
-                    <div key={order._id} className="bg-paper border border-border rounded-xl p-4 sm:p-5 shadow-sm">
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 pb-4 border-b border-border/50">
-                        <div>
-                          <p className="text-sm font-semibold text-espresso">{order.orderNumber}</p>
-                          <p className="text-[11px] text-fog uppercase tracking-widest mt-0.5">{formatDate(order.createdAt)}</p>
-                        </div>
-                        <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
-                          <span className={`inline-flex text-[11px] font-medium px-3 py-1 rounded-full border ${STATUS_COLORS[order.status] || ""}`}>
-                            {order.status}
-                          </span>
-                          <span className="text-lg font-medium text-espresso">${order.totalAmount?.toFixed(2)}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        {order.items?.map((item, idx) => (
-                          <div key={idx} className="flex justify-between items-center text-[13px]">
-                            <div className="flex items-center gap-2">
-                              <span className="text-fog">{item.quantity}x</span>
-                              <span className="text-espresso font-medium">{item.productName || item.product?.name || "Unknown Product"}</span>
-                            </div>
-                            <span className="text-fog">${(item.quantity * item.price).toFixed(2)}</span>
+            {/* Modal Body - Scrollable */}
+            <div 
+              className="flex-1 overflow-y-auto bg-paper/50 min-h-0"
+              data-lenis-prevent="true"
+            >
+              <div className="p-4 md:p-6">
+                {loadingOrders ? (
+                  <div className="flex flex-col items-center justify-center py-20 opacity-70">
+                    <Loader2 className="w-8 h-8 text-tan animate-spin-slow mb-4" />
+                    <p className="text-fog text-sm animate-pulse">Fetching orders...</p>
+                  </div>
+                ) : ordersError ? (
+                  <div className="card-linen flex flex-col items-center justify-center py-12 text-center border-rust/20">
+                    <AlertCircle className="w-8 h-8 text-rust mb-3" />
+                    <p className="text-espresso font-medium text-sm">{ordersError}</p>
+                  </div>
+                ) : customerOrders.length === 0 ? (
+                  <div className="text-center py-16">
+                    <ShoppingCart className="w-12 h-12 md:w-16 md:h-16 text-fog/20 mx-auto mb-4" />
+                    <p className="text-fog text-sm">No orders found for this customer.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 md:space-y-4">
+                    {customerOrders.map(order => (
+                      <div key={order._id} className="bg-paper border border-border rounded-xl p-3 md:p-5 shadow-sm hover:shadow-md transition-shadow">
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 md:gap-3 mb-3 md:mb-4 pb-3 md:pb-4 border-b border-border/50">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-espresso truncate">{order.orderNumber}</p>
+                            <p className="text-[11px] text-fog uppercase tracking-widest mt-0.5">{formatDate(order.createdAt)}</p>
                           </div>
-                        ))}
+                          <div className="flex items-center justify-between sm:justify-end gap-3 md:gap-4 w-full sm:w-auto flex-shrink-0">
+                            <span className={`inline-flex text-[10px] md:text-[11px] font-medium px-2.5 md:px-3 py-1 rounded-full border ${STATUS_COLORS[order.status] || ""}`}>
+                              {order.status}
+                            </span>
+                            <span className="text-base md:text-lg font-medium text-espresso whitespace-nowrap">${order.totalAmount?.toFixed(2)}</span>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          {order.items?.map((item, idx) => (
+                            <div key={idx} className="flex justify-between items-start gap-2 text-xs md:text-[13px]">
+                              <div className="flex items-start gap-2 min-w-0 flex-1">
+                                <span className="text-fog flex-shrink-0">{item.quantity}×</span>
+                                <span className="text-espresso font-medium line-clamp-2">{item.productName || item.product?.name || "Unknown Product"}</span>
+                              </div>
+                              <span className="text-fog flex-shrink-0 whitespace-nowrap">${(item.quantity * item.price).toFixed(2)}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             
             {/* Modal Footer */}
             {!loadingOrders && !ordersError && customerOrders.length > 0 && (
-              <div className="border-t border-border p-4 bg-paper shrink-0 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                <span className="text-sm text-fog">
+              <div className="border-t border-border p-3 md:p-4 bg-paper flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 flex-shrink-0">
+                <span className="text-xs md:text-sm text-fog">
                   Orders shown: {customerOrders.length} (paid + unpaid)
                 </span>
-                <span className="text-espresso font-medium text-lg">
+                <span className="text-espresso font-medium text-base md:text-lg whitespace-nowrap">
                   Paid revenue: $
                   {customerOrders
                     .filter((o) => o.paymentStatus === "paid" || o.paymentStatus == null)
