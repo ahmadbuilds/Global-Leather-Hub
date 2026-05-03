@@ -10,7 +10,7 @@ const getStripe = () => {
   return stripeInstance;
 };
 
-/** Stripe amounts are in smallest currency unit (e.g. cents), except zero-decimal currencies. */
+//Stripe amounts are in smallest currency unit except zero-decimal currencies
 const amountToStripeUnit = (amount, currency) => {
   const upper = (currency || 'USD').toUpperCase();
   const zeroDecimal = new Set([
@@ -35,4 +35,29 @@ const amountToStripeUnit = (amount, currency) => {
   return Math.round(amount * 100);
 };
 
-module.exports = { getStripe, amountToStripeUnit };
+const stripeUnitToAmount = (unitAmount, currency) => {
+  const upper = (currency || 'USD').toUpperCase();
+  const zeroDecimal = new Set([
+    'BIF',
+    'CLP',
+    'DJF',
+    'GNF',
+    'JPY',
+    'KMF',
+    'KRW',
+    'MGA',
+    'PYG',
+    'RWF',
+    'UGX',
+    'VND',
+    'VUV',
+    'XAF',
+    'XOF',
+    'XPF',
+  ]);
+  if (zeroDecimal.has(upper)) return Math.round(unitAmount);
+  const amt = (unitAmount || 0) / 100;
+  return Math.round(amt * 100) / 100;
+};
+
+module.exports = { getStripe, amountToStripeUnit, stripeUnitToAmount };
