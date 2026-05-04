@@ -1,11 +1,58 @@
-const { Resend } = require('resend');
+const https = require('https');
 const logger = require('./logger');
 const User = require('../models/User');
 
-const resend = new Resend(process.env.RESEND_API_KEY);
-
 const getFromEmail = () => process.env.FROM_EMAIL || 'noreply@globalleatherhub.com';
 const getFromName = () => process.env.FROM_NAME || 'Global Leather Hub';
+
+const sendEmailJS = async (to_email, subject, html, reply_to = null) => {
+  const service_id = process.env.EMAILJS_SERVICE_ID;
+  const template_id = process.env.EMAILJS_TEMPLATE_ID;
+  const user_id = process.env.EMAILJS_PUBLIC_KEY;
+  const accessToken = process.env.EMAILJS_PRIVATE_KEY;
+
+  if (!service_id || !template_id || !user_id) {
+    throw new Error('EmailJS credentials are not fully configured in environment variables.');
+  }
+
+  const data = {
+    service_id,
+    template_id,
+    user_id,
+    accessToken,
+    template_params: {
+      to_email,
+      subject,
+      html_content: html,
+      reply_to: reply_to || getFromEmail(),
+      from_name: getFromName()
+    }
+  };
+
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify(data);
+    const req = https.request('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload)
+      }
+    }, (res) => {
+      let body = '';
+      res.on('data', chunk => body += chunk);
+      res.on('end', () => {
+        if (res.statusCode >= 200 && res.statusCode < 300) {
+          resolve(body);
+        } else {
+          reject(new Error(`EmailJS Error: ${res.statusCode} ${body}`));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.write(payload);
+    req.end();
+  });
+};
 
 const sendOTPEmail = async (to, otp, purpose = 'verification') => {
 
@@ -79,18 +126,9 @@ const sendOTPEmail = async (to, otp, purpose = 'verification') => {
   `;
 
   try {
-    const { data, error } = await resend.emails.send({
-      from: `${getFromName()} <${getFromEmail()}>`,
-      to: [to],
-      subject,
-      html,
-    });
-    if (error) {
-      logger.error(`Failed to send OTP email to ${to}: ${error.message}`);
-      throw new Error('Failed to send verification email');
-    }
-    logger.info(`OTP email sent to ${to}: ${data?.id}`);
-    return { success: true, messageId: data?.id };
+    await sendEmailJS(to, subject, html);
+    logger.info(`OTP email sent to ${to}`);
+    return { success: true, messageId: `emailjs-${Date.now()}` };
   } catch (error) {
     logger.error(`Failed to send OTP email to ${to}: ${error.message}`);
     throw new Error('Failed to send verification email');
@@ -127,19 +165,9 @@ const sendContactEmail = async (formData) => {
   `;
 
   try {
-    const { data, error } = await resend.emails.send({
-      from: `${getFromName()} <${getFromEmail()}>`,
-      to: ['crisitiano678@gmail.com'],
-      replyTo: email,
-      subject: `Direct Inquiry: ${inquiryType} - ${name}`,
-      html,
-    });
-    if (error) {
-      logger.error(`Failed to send contact email: ${error.message}`);
-      throw new Error('Failed to deliver the contact email directly.');
-    }
-    logger.info(`Contact email sent directly to crisitiano678@gmail.com: ${data?.id}`);
-    return { success: true, messageId: data?.id };
+    await sendEmailJS('crisitiano678@gmail.com', `Direct Inquiry: ${inquiryType} - ${name}`, html, email);
+    logger.info(`Contact email sent directly to crisitiano678@gmail.com`);
+    return { success: true, messageId: `emailjs-${Date.now()}` };
   } catch (error) {
     logger.error(`Failed to send contact email: ${error.message}`);
     throw new Error('Failed to deliver the contact email directly.');
@@ -353,18 +381,9 @@ const sendOrderStatusEmail = async (userOrUserId, subjectShort, order) => {
   `;
 
   try {
-    const { data, error } = await resend.emails.send({
-      from: `${getFromName()} <${getFromEmail()}>`,
-      to: [toEmail],
-      subject,
-      html,
-    });
-    if (error) {
-      logger.error(`Failed to send order email to ${toEmail}: ${error.message}`);
-      throw new Error('Failed to send order notification');
-    }
-    logger.info(`Order email (${subjectShort}) sent to ${toEmail}: ${data?.id}`);
-    return { success: true, messageId: data?.id };
+    await sendEmailJS(toEmail, subject, html);
+    logger.info(`Order email (${subjectShort}) sent to ${toEmail}`);
+    return { success: true, messageId: `emailjs-${Date.now()}` };
   } catch (error) {
     logger.error(`Failed to send order email to ${toEmail}: ${error.message}`);
     throw new Error('Failed to send order notification');
