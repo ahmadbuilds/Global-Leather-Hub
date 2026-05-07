@@ -225,7 +225,7 @@ Ensure you have the following installed on your system:
    ```bash
    npm run dev
    ```
-   You should see: `Server running on port 8080`
+   You should see: `Server running on port 5000`
 
 ### Frontend Setup
 
@@ -241,7 +241,7 @@ Ensure you have the following installed on your system:
    npm install
    ```
 
-3. **Create `.env.local` file in the frontend root directory** (see [Frontend .env](#frontend-env) section)
+3. **Create `.env` file in the frontend root directory** (see [Frontend .env](#frontend-env) section)
 
 4. **Start development server:**
    ```bash
@@ -258,80 +258,70 @@ Ensure you have the following installed on your system:
 Create a `.env` file in the `backend/` directory with the following variables:
 
 ```env
-# Server Configuration
-PORT=8080
-NODE_ENV=development
+# Server
+PORT=5000
+REQUEST_LOG_FORMAT=dev
+LOG_LEVEL=debug
+EXPOSE_ERROR_STACK=true
+TURNSTILE_SKIP_VERIFY=false
 
-# Database Configuration
-MONGODB_URI=mongodb://localhost:27017/global-leather-hub
-# For MongoDB Atlas:
-# MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/global-leather-hub
+# MongoDB
+MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>/<db>
 
-# JWT Configuration
-JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+# JWT
+JWT_SECRET=your-jwt-secret
 JWT_EXPIRE=7d
-REFRESH_TOKEN_SECRET=your-refresh-token-secret-change-this-in-production
+JWT_REFRESH_SECRET=your-jwt-refresh-secret
+JWT_REFRESH_EXPIRE=30d
 
-# Email Configuration (Nodemailer)
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USER=your-email@gmail.com
-SMTP_PASS=your-app-specific-password
-SMTP_FROM_EMAIL=noreply@globalleatherhub.com
-SMTP_FROM_NAME=Global Leather Hub
+# EmailJS
+EMAILJS_SERVICE_ID=your-emailjs-service-id
+EMAILJS_TEMPLATE_ID=your-emailjs-template-id
+EMAILJS_PUBLIC_KEY=your-emailjs-public-key
+EMAILJS_PRIVATE_KEY=your-emailjs-private-key
 
-# Cloudinary Configuration (Image Uploads)
-CLOUDINARY_CLOUD_NAME=your-cloudinary-cloud-name
-CLOUDINARY_API_KEY=your-cloudinary-api-key
-CLOUDINARY_API_SECRET=your-cloudinary-api-secret
+# Cloudflare Turnstile
+CLOUDFLARE_TURNSTILE_SECRET=your-turnstile-secret
 
-# Stripe Configuration (Payment Processing)
+# Stripe
 STRIPE_SECRET_KEY=sk_test_your-stripe-secret-key
 STRIPE_WEBHOOK_SECRET=whsec_your-webhook-secret
 
-# Cloudflare Turnstile (Bot Protection)
-CLOUDFLARE_TURNSTILE_SECRET_KEY=your-cloudflare-secret-key
-
 # Frontend URL (for CORS)
-FRONTEND_URL=http://localhost:5173
+CLIENT_URL=http://localhost:5173
 
-# Currency API (for live rates)
-CURRENCY_API_KEY=your-currency-api-key
-CURRENCY_API_URL=https://api.exchangerate-api.com/v4/latest/
+# OTP
+OTP_EXPIRE_MINUTES=10
 
-# Logging
-LOG_LEVEL=info
-LOG_FILE=logs/app.log
+# Cloudinary
+CLOUDINARY_CLOUD_NAME=your-cloudinary-cloud-name
+CLOUDINARY_API_KEY=your-cloudinary-api-key
+CLOUDINARY_API_SECRET=your-cloudinary-api-secret
 ```
 
 **Important Notes:**
 
-- Change `JWT_SECRET` and `REFRESH_TOKEN_SECRET` in production
+- Change `JWT_SECRET` and `JWT_REFRESH_SECRET` in production
 - Use environment-specific configurations for development, staging, and production
 - Keep sensitive keys secure and never commit `.env` to version control
 
 ### Frontend .env
 
-Create a `.env.local` file in the `frontend/` directory with the following variables:
+Create a `.env` file in the `frontend/` directory with the following variables:
 
 ```env
 # API Configuration
-VITE_API_URL=http://localhost:8080/api
+VITE_API_URL=http://localhost:5000/api
+VITE_BACKEND_URL=http://localhost:5000
 
 # Cloudflare Turnstile (Bot Protection)
-VITE_CLOUDFLARE_SITE_KEY=your-cloudflare-site-key
-
-# Environment
-VITE_ENV=development
-
-# Optional: Stripe Public Key (if needed for client-side operations)
-# VITE_STRIPE_PUBLIC_KEY=pk_test_your-stripe-public-key
+VITE_CF_TURNSTILE_SITE_KEY=your-cloudflare-site-key
 ```
 
 **Important Notes:**
 
 - `VITE_` prefix is required for Vite to expose variables to the browser
-- The API URL should match the backend `FRONTEND_URL` for CORS
+- `VITE_API_URL` should point to the backend base URL, while `CLIENT_URL` should match the frontend origin for CORS
 - Cloudflare Site Key is public and can be exposed
 - Never expose secret keys on the frontend
 
@@ -354,7 +344,7 @@ npm start
 npm test
 ```
 
-The backend will run on `http://localhost:8080`
+The backend will run on `http://localhost:5000`
 
 ### Start Frontend Development Server
 
@@ -420,7 +410,7 @@ For comprehensive API endpoint documentation, see [backend/API_DOCUMENTATION.md]
 
 ### Quick API Reference
 
-**Base URL:** `http://localhost:8080/api`
+**Base URL:** `http://localhost:5000/api`
 
 **Main Endpoint Groups:**
 
@@ -480,7 +470,7 @@ For comprehensive API endpoint documentation, see [backend/API_DOCUMENTATION.md]
 **Server fails to start:**
 
 - Verify MongoDB connection string in `.env`
-- Check if port 8080 is available
+- Check if port 5000 is available
 - Ensure all required environment variables are set
 
 **Database connection error:**
@@ -493,7 +483,7 @@ For comprehensive API endpoint documentation, see [backend/API_DOCUMENTATION.md]
 **API requests failing:**
 
 - Verify backend is running on correct port
-- Check `VITE_API_URL` in `.env.local`
+- Check `VITE_API_URL` in `.env`
 - Clear browser cache and restart dev server
 
 **Styles not loading:**
